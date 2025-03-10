@@ -1,3 +1,18 @@
+<!--
+ Copyright 2023 Google LLC
+ 
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+ 
+      https://www.apache.org/licenses/LICENSE-2.0
+ 
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+ -->
 # xprofiler
 
 The `xprofiler` SDK and CLI tool provides abstraction over profile session
@@ -33,8 +48,8 @@ When the command completes, you will see it return information about the
 instance created, similar to below:
 
 ```
-NAME                                            ZONE
-xprofiler-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  us-central1-a
+LOG_PATH                            NAME                                            ZONE
+gs://example-bucket/my-profile-data xprofiler-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  us-central1-a
 ```
 
 This will create a VM instance with TensorBoard installed. Note that this
@@ -57,9 +72,9 @@ This will output something like the following if there are instances matching
 the list criteria:
 
 ```
-NAME                                            ZONE
-xprofiler-8187640b-e612-4c47-b4df-59a7fc86b253  us-central1-a
-xprofiler-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  us-central1-a
+LOG_PATH                                   NAME                                            ZONE
+gs://example-bucket/my-other-profile-data  xprofiler-8187640b-e612-4c47-b4df-59a7fc86b253  us-central1-a
+gs://example-bucket/my-profile-data        xprofiler-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  us-central1-a
 ```
 
 Note you can specify the GCS bucket to get just that one associated instance:
@@ -81,4 +96,4 @@ xprofiler delete -z $ZONE -l $GCS_PATH
 # Delete by VM instance name
 VM_NAME="xprofiler-8187640b-e612-4c47-b4df-59a7fc86b253"
 xprofiler delete -z $ZONE --name $VM_NAME
-
+```
