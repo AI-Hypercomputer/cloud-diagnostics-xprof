@@ -97,3 +97,50 @@ xprofiler delete -z $ZONE -l $GCS_PATH
 VM_NAME="xprofiler-8187640b-e612-4c47-b4df-59a7fc86b253"
 xprofiler delete -z $ZONE --name $VM_NAME
 ```
+
+## Details on `xprofiler`
+
+### Main Command: `xprofiler`
+
+The `xprofiler` command has additional subcommands that can be invoked to
+[create](#subcommand-xprofiler-create) VM instances,
+[list](#subcommand-xprofiler-list) VM instances,
+[delete](#subcommand-xprofiler-delete) instances, etc.
+However, the main `xprofiler` command has some additional options without
+invoking a subcommand.
+
+#### `xprofiler --help`
+
+Gives additional information about using the command including flag options and
+available subcommands. Also can be called with `xprofiler -h`.
+
+> Note that each subcommand has a `--help` flag that can give information about
+> that specific subcommand. For example: `xprofiler list --help`
+
+#### `xprofiler --abbrev ...`
+
+When invoking a subcommand, typically there is output related to VM instances
+involved with the subcommand, usually as a detailed table.
+
+In some cases, a user may only want the relevant information (for example a log
+directory GCS path or VM name instance). This can be particularly useful in
+scripting with `xprofiler` by chaining with other commands.
+
+To assist with this, the `--abbrev` (or equivalent `-a`) flag will simply print
+the relevant item (log directory path or VM instance name).
+
+For example, calling `xprofiler list` might give the following output:
+
+```
+LOG_PATH                                   NAME                                            ZONE
+gs://example-bucket/my-other-profile-data  xprofiler-8187640b-e612-4c47-b4df-59a7fc86b253  us-central1-a
+gs://example-bucket/my-profile-data        xprofiler-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  us-central1-a
+```
+
+But calling with `xprofiler --abbrev list` will instead print out an abbreviated
+form of the above output where each item is displayed on a new line:
+
+```
+xprofiler-8187640b-e612-4c47-b4df-59a7fc86b253
+xprofiler-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef
+```
