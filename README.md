@@ -144,3 +144,59 @@ form of the above output where each item is displayed on a new line:
 xprofiler-8187640b-e612-4c47-b4df-59a7fc86b253
 xprofiler-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef
 ```
+
+### Subcommand: `xprofiler create`
+
+This command is used to create a new VM instance for TensorBoard to run with a
+given profile log directory GCS path.
+
+Usage details:
+
+```
+xprofiler create
+  [--help]
+  --log-directory GS_PATH
+  [--zone ZONE_NAME]
+  [--vm-name VM_NAME]
+  [--verbose]
+```
+
+At the successful completion of this command, the information regarding the
+newly created VM instances is printed out like the example below:
+
+```
+LOG_PATH                            NAME                                            ZONE
+gs://example-bucket/my-profile-data xprofiler-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  us-central1-a
+```
+
+If the [xprofiler abbreviation flag](#xprofiler-abbrev-) is used, then an
+abbreviated output is given like so:
+
+```
+xprofiler-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef
+```
+
+#### `xprofiler create --help`
+
+This provides the basic usage guide for the `xprofiler create` subcommand.
+
+#### Creating a VM Instance
+
+To create a new VM instance, a user _must_ specify a profile log directory path
+(a GCS path) as in `xprofiler create -l gs://example-bucket/my-profile-data`.
+This will create a VM instance associated with the log directory. The instance
+will also have TensorBoard installed and setup ready for use.
+
+> Note that after the VM creation, it might take a few minutes for the VM
+> instance to fully be ready (installing dependencies, launching TensorBoard,
+> etc.)
+
+It is recommended to also provide a zone with `--zone` or `-z` but it is
+optional.
+
+By default, the VM instance's name will be uniquely created prepended with
+`xprofiler-`. However, this can be specified with the `--vm-name` or `-n` flag
+to give a specific name to the newly created VM.
+
+Lastly, there is a `--verbose` or `-v` flag that will provide information as the
+`xprofiler create` subcommand runs.
