@@ -162,7 +162,7 @@ class Delete(action.Command):
       )
 
       if verbose:
-        print(f'VM name(s) from log directory: {vm_names}')
+        print(f'VM name(s) from log directory: {vm_names_from_log_directory}')
 
       vm_names.extend(vm_names_from_log_directory)
 
