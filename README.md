@@ -200,3 +200,76 @@ to give a specific name to the newly created VM.
 
 Lastly, there is a `--verbose` or `-v` flag that will provide information as the
 `xprofiler create` subcommand runs.
+
+
+### Subcommand: `xprofiler list`
+
+This command is used to list a VM instances created by the xprofiler tool.
+
+Usage details:
+
+```
+xprofiler list
+  [--help]
+  [--zone ZONE_NAME]
+  [--log-directory GS_PATH [GS_PATH ...]]
+  [--filter FILTER_NAME [FILTER_NAME ...]]
+  [--verbose]
+```
+
+At the successful completion of this command, the information of matching VM
+instances is printed out like the example below:
+
+```
+LOG_PATH                                   NAME                                            ZONE
+gs://example-bucket/my-other-profile-data  xprofiler-8187640b-e612-4c47-b4df-59a7fc86b253  us-central1-a
+gs://example-bucket/my-profile-data        xprofiler-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  us-central1-a
+```
+
+If the [xprofiler abbreviation flag](#xprofiler-abbrev-) is used, then an
+abbreviated output is given like so:
+
+```
+xprofiler-8187640b-e612-4c47-b4df-59a7fc86b253
+xprofiler-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef
+```
+
+#### `xprofiler list --help`
+
+This provides the basic usage guide for the `xprofiler list` subcommand.
+
+
+#### Listing Specific Subsets
+
+Note that the `xprofiler list` command will default to listing all VM instances
+that have the prefix `xprofiler`.
+
+However, a specific subset of VM instances can be returned using different
+options.
+
+##### Providing Zone
+
+`xprofiler list -z $ZONE`
+
+Providing the zone is highly recommended since otherwise the command can take a
+while to search for all relevant VM instances.
+
+##### Providing GCS Path (Profile Log Directory)
+
+Since `xprofiler list` is meant to look for VM instances created with
+`xprofiler`, it is likely the VM instance of interest is associated with a
+profile log directory.
+
+To filter for a specific VM instance with an associated log directory, simply
+use the command like so:
+
+```bash
+xprofiler list -l $GS_PATH
+```
+
+You can even use multiple log directory paths to find any VMs associated with
+any of these paths:
+
+```bash
+xprofiler list -l $GS_PATH_0 $GS_PATH_1 $GS_PATH_2
+```
