@@ -21,7 +21,6 @@ new instance using the `xprofiler create` command.
 
 import argparse
 from collections.abc import Mapping, Sequence
-from typing_extensions import override
 from actions import action
 from actions import list_action
 
@@ -35,11 +34,15 @@ class Connect(action.Command):
         description='Connect to a hosted TensorBoard instance.',
     )
 
-  @override
   def add_subcommand(
       self,
       subparser: argparse._SubParsersAction,
   ) -> None:
+    """Creates a subcommand for `connect`.
+
+    Args:
+        subparser: The subparser to add the connect subcommand to.
+    """
     connect_parser = subparser.add_parser(
         name='connect',
         help='Connect to a hosted TensorBoard instance.',
@@ -68,6 +71,25 @@ class Connect(action.Command):
         help='The mode to connect to the instance.',
     )
     connect_parser.add_argument(
+        '--port',
+        '-p',
+        metavar='LOCAL_PORT',
+        default='6006',
+        help='The port to connect to the instance.',
+    )
+    connect_parser.add_argument(
+        '--host-port',
+        metavar='HOST_PORT',
+        default='6006',
+        help='The port from the host to connect to the instance.',
+    )
+    connect_parser.add_argument(
+        '--disconnect',
+        '-d',
+        action='store_true',
+        help='Disconnect from the instance (assuming connection was made).',
+    )
+    connect_parser.add_argument(
         '--verbose',
         '-v',
         action='store_true',
@@ -77,7 +99,6 @@ class Connect(action.Command):
   def _get_vms_from_log_directory(
       self,
       log_directories: Sequence[str],
-      *,
       zone: str | None,
       verbose: bool = False,
   ) -> Sequence[str]:
@@ -110,6 +131,7 @@ class Connect(action.Command):
     if verbose:
       print(command_output)
 
+    # Ignore the header and return just the VM names.
     unused_header, *vm_names = (
         command_output
         .strip()  # Removes the extra new line(s) that tends to be at the end.
@@ -118,13 +140,22 @@ class Connect(action.Command):
 
     return vm_names
 
-  @override
   def _build_command(
       self,
       args: argparse.Namespace,
       extra_args: Mapping[str, str] | None = None,
       verbose: bool = False,
   ) -> Sequence[str]:
+    """Builds the command to connect to a hosted TensorBoard instance.
+
+    Args:
+      args: The arguments parsed from the command line.
+      extra_args: Any extra arguments to pass to the command.
+      verbose: Whether to print the command and other output.
+
+    Returns:
+      The command to connect to a hosted TensorBoard instance.
+    """
     # Check that log directory is specified.
     if not args.log_directory:
       raise ValueError('--log-directory must be specified.')
@@ -145,17 +176,32 @@ class Connect(action.Command):
     try:
       vm_name = vm_names[0]
     except IndexError:
-      raise ValueError('No VM name found.') from IndexError
+      raise ValueError(
+          'No VM name found associated with the log directory.'
+      ) from IndexError
 
     if verbose:
       print(f'Using first VM name from the list: {vm_name}')
 
+    # Establish a master control connection to the VM.
+    socket_path = f'/tmp/ssh_mux_socket_{vm_name}'
+    # Disconnect from the VM if specified.
+    if args.disconnect:
+      ssh_flags = f'-o ControlPath={socket_path} -O exit'
+    # If not disconnecting, connect to the VM.
+    else:
+      ssh_flags = (
+          f'-f -N -M -S {socket_path}'  # Create socket file & keep it alive.
+          f' -L {args.port}:localhost:{args.host_port}'  # Forward port.
+      )
+
+    # Command will either create & connect to a socket file or disconnect.
     connect_command = [
         'gcloud',
         'compute',
         'ssh',
         f'{vm_name}',
-        '--ssh-flag="-4 -L 6006:localhost:6006"',
+        f'--ssh-flag={ssh_flags}',
     ]
     if args.zone:
       connect_command.append(f'--zone={args.zone}')
@@ -165,8 +211,5 @@ class Connect(action.Command):
       connect_command.extend(
           [f'{arg}={value}' for arg, value in extra_args.items()]
       )
-
-    if verbose:
-      print(f'Running command: {connect_command}')
 
     return connect_command
