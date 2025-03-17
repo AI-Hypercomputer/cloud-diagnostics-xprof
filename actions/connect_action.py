@@ -213,3 +213,35 @@ class Connect(action.Command):
       )
 
     return connect_command
+
+  def run(
+      self,
+      args: argparse.Namespace,
+      extra_args: Mapping[str, str] | None = None,
+      verbose: bool = False,
+  ) -> str:
+    # If the user wants to disconnect, print a message.
+    if args.disconnect:
+      print('DISCONNECTING FROM VM...')
+    # Warn user that initial SSH connection can take a while.
+    else:
+      print(
+          'CONNECTING TO VM...\n'
+          'Note: The initial SSH connection can take a while when connecting to'
+          ' a VM on a new project for the first time.'
+      )
+
+    stdout = super().run(
+        args=args,
+        extra_args=extra_args,
+        verbose=verbose,
+    )
+
+    # Print the URL if connected successfully.
+    if not args.disconnect and args.mode == 'ssh':
+      print(
+          'Connected successfully!\n'
+          f'URL: https://localhost:{args.port}'
+      )
+
+    return stdout
