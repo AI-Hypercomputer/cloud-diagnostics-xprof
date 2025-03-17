@@ -106,29 +106,46 @@ class Command(abc.ABC):
     if verbose:
       print(f'Command to run: {command}')
 
-    stdout: str = self._run_command(command)
+    stdout: str = self._run_command(command, verbose=verbose)
     return stdout
 
   def _run_command(
       self,
       command: Sequence[str],
+      *,
+      verbose: bool = False,
   ) -> str:
     """Run the command.
 
     Args:
       command: The command to run.
+      verbose: Whether to print the command and other output.
 
     Returns:
       The output of the command.
     """
-    diag = subprocess.run(
-        command,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    output = ''
+    try:
+      diag = subprocess.run(
+          command,
+          check=True,
+          capture_output=True,
+          text=True,
+      )
+      if verbose:
+        print(f'Command {command} succeeded.')
+      if diag.stdout:
+        output = diag.stdout
+        if verbose:
+          print(f'Output: {diag.stdout}')
 
-    return diag.stdout
+    except subprocess.CalledProcessError as e:
+      if e.stderr:
+        print('Standard Error:')
+        print(e.stderr)
+      raise ValueError(f'Command failed with return code {e.returncode}') from e
+
+    return output
 
   def _format_string_with_replacements(
       self,
