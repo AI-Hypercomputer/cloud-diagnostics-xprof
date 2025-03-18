@@ -26,6 +26,7 @@ from collections.abc import Mapping, Sequence
 import itertools
 
 from actions import action
+from actions import capture_action
 from actions import connect_action
 from actions import create_action
 from actions import delete_action
@@ -272,6 +273,7 @@ class XprofilerParser:
 def main():
   xprofiler_parser: XprofilerParser = XprofilerParser(
       commands={
+          'capture': capture_action.Capture(),
           'connect': connect_action.Connect(),
           'create': create_action.Create(),
           'delete': delete_action.Delete(),
