@@ -140,6 +140,33 @@ class Connect(action.Command):
 
     return vm_names
 
+  def _initial_ssh_add_keys(self, verbose: bool = False) -> str:
+    """Adds the SSH keys to the VM.
+
+    Args:
+      verbose: Whether to print verbose output.
+
+    Returns:
+      The output of the command.
+    """
+
+    command = [
+        'gcloud',
+        'compute',
+        'os-login',
+        'ssh-keys',
+        'add',
+        '--key',
+        '$(ssh-add -L | grep publickey)',
+    ]
+
+    if verbose:
+      print(f'Command to run: {command}')
+
+    stdout = self._run_command(command)
+
+    return stdout
+
   def _build_command(
       self,
       args: argparse.Namespace,
@@ -230,6 +257,12 @@ class Connect(action.Command):
           'Note: The initial SSH connection can take a while when connecting to'
           ' a VM on a new project for the first time.'
       )
+      # Add the SSH keys to the VM.
+      print('Adding SSH keys to the VM...')
+      stdout_ssh_add_keys = self._initial_ssh_add_keys(verbose=verbose)
+      print('SSH keys added to the VM')
+      if verbose:
+        print(stdout_ssh_add_keys)
 
     stdout = super().run(
         args=args,
