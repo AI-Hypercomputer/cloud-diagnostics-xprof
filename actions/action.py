@@ -140,10 +140,7 @@ class Command(abc.ABC):
           print(f'Output: {diag.stdout}')
 
     except subprocess.CalledProcessError as e:
-      if e.stderr:
-        print('Standard Error:')
-        print(e.stderr)
-      raise ValueError(f'Command failed with return code {e.returncode}') from e
+      raise ValueError(f'Command failed with following error: {e}') from e
 
     return output
 

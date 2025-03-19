@@ -26,11 +26,12 @@ import uuid
 from actions import action
 
 
-# Used to install dependencies & startup TensorBoard.
-# MUST be a raw string otherwise interpreted as file path for startup script.
-_STARTUP_SCRIPT_STRING: str = r"""#! /bin/bash
+_STARTUP_SCRIPT_STRING = r"""#! /bin/bash
+echo \"Starting setup.\"
 apt-get update
 apt-get install -yq git supervisor python3 python3-pip python3-distutils python3-virtualenv
+# Setup tensorboard webserver
+echo \"Setup tensorboard webserver.\"
 virtualenv -p python3 tensorboardvenv
 source tensorboardvenv/bin/activate
 tensorboardvenv/bin/pip3 install tensorflow-cpu
@@ -38,15 +39,70 @@ tensorboardvenv/bin/pip3 install --upgrade 'cloud-tpu-profiler>=2.3.0'
 tensorboardvenv/bin/pip3 install tensorboard_plugin_profile
 tensorboardvenv/bin/pip3 install importlib_resources
 tensorboardvenv/bin/pip3 install etils
-tensorboard --logdir {log_directory} --host 0.0.0.0 --port 6006 &
-EOF"""
+tensorboard --logdir {LOG_DIRECTORY} --host 0.0.0.0 --port 6006 &
+# Setup forwarding agent and proxy
+echo \"Setup forwarding agent and proxy.\"
+# Remove existing docker packages
+echo \"Remove existing docker packages.\"
+for pkg in docker.io docker-doc docker-compose podman-docker containerd runc; do sudo apt-get remove $pkg; done
+# Install docker
+echo \"Install docker.\"
+sudo apt install docker.io --yes
+# Get inverse proxy mapping file.
+echo \"Get inverse proxy mapping file.\"
+gcloud storage cp gs://dl-platform-public-configs/proxy-agent-config.json .
+# Get proxy URL for this region
+echo \"Get proxy URL for this region.\"
+PROXY_URL=\$(python3 -c \"import json; import sys; data=json.load(sys.stdin); print(data['agent-docker-containers']['latest']['proxy-urls']['{REGION}'][0])\" < proxy-agent-config.json)
+# Get VM ID for this proxy url
+echo \"Get VM ID for this proxy url.\"
+VM_ID=\$(curl -H 'Metadata-Flavor: Google' \"http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?format=full&audience=${PROXY_URL}/request-endpoint\"  2>/dev/null)
+# Generate backend and host id
+echo \"Generate backend and host id.\"
+RESULT_JSON=\$(curl -H \"Authorization: Bearer \$(gcloud auth print-access-token)\" -H \"X-Inverting-Proxy-VM-ID: \${VM_ID}\" -d \"\" \"\${PROXY_URL}/request-endpoint\" 2>/dev/null)
+echo -e \"\${RESULT_JSON}\"
+# Extract backend id from response
+echo \"Extract backend id from response.\"
+BACKEND_ID=\$(python3 -c \"import json; import sys; data=json.loads(sys.argv[1]); print(data['backendID'])\" \"\${RESULT_JSON}\")
+echo -e \"\${BACKEND_ID}\"
+# Extract hostname from response
+echo \"Extract hostname from response.\"
+HOSTNAME=\$(python3 -c \"import json; import sys; data=json.loads(sys.argv[1]); print(data['hostname'])\" \"\${RESULT_JSON}\")
+echo -e \"\${HOSTNAME}\"
+# Set container name
+CONTAINER_NAME='proxy-agent'
+# Set URL for agent container
+CONTAINER_URL='gcr.io/inverting-proxy/agent:latest'
+# Start agent container
+docker run -d \
+--env \"BACKEND=\${BACKEND_ID}\" \
+--env \"PROXY=\${PROXY_URL}/\" \
+--env \"SHIM_WEBSOCKETS=true\" \
+--env \"SHIM_PATH=websocket-shim\" \
+--env \"PORT=6006\" \
+--net=host \
+--restart always \
+--name \"\${CONTAINER_NAME}\" \
+\"\${CONTAINER_URL}\" &
+echo \"Setting endpoint info in metadata.\"
+gcloud compute instances add-labels {MY_INSTANCE_NAME} --zone={ZONE} --labels tb_backend_id=\"\${BACKEND_ID}\"
+echo \"Startup Finished\"
+"""
+
+# Used to install dependencies & startup TensorBoard.
+# MUST be a raw string otherwise interpreted as file path for startup script.
+_STARTUP_ENTRY_STRING: str = r"""#! /bin/bash
+python3 -c "print(r'''{STARTUP_SCRIPT_STRING}''')" > startup.sh
+chmod 775 startup.sh
+. ./startup.sh > startup.log
+"""
 
 # Used for creating the VM instance.
 _DEFAULT_EXTRA_ARGS: Mapping[str, str] = {
     '--tags': 'default-allow-ssh',
     '--image-family': 'debian-12',
     '--image-project': 'debian-cloud',
-    '--machine-type': 'e2-medium',
+    '--machine-type': 'e2-highmem-4',
     '--scopes': 'cloud-platform',
 }
 
@@ -85,6 +141,7 @@ class Create(action.Command):
         '--zone',
         '-z',
         metavar='ZONE_NAME',
+        required=True,
         help='The GCP zone to create the instance in.',
     )
     create_parser.add_argument(
@@ -134,21 +191,21 @@ class Create(action.Command):
     }
     extra_args |= {'--labels': self._format_label_string(labels)}
 
-    startup_script = _STARTUP_SCRIPT_STRING.format(
-        log_directory=args.log_directory
-    )
-
-    if verbose:
-      print(f'Using startup script:\n{startup_script}')
-
-    extra_args |= {'--metadata': 'startup-script=' + startup_script}
-
     # Create the VM name if not provided.
     vm_name = (
         args.vm_name if args.vm_name else f'{self.VM_BASE_NAME}-{uuid.uuid4()}'
     )
     if verbose:
       print(f'Will create VM w/ name: {vm_name}')
+
+    # Create the startup entry script.
+    startup_entry_script = startup_script_string(
+        args.log_directory, vm_name, args.zone)
+
+    if verbose:
+      print(f'Using startup script:\n{startup_entry_script}')
+
+    extra_args |= {'--metadata': 'startup-script=' + startup_entry_script}
 
     create_vm_command = [
         self.GCLOUD_COMMAND,
@@ -170,3 +227,22 @@ class Create(action.Command):
       print(create_vm_command)
 
     return create_vm_command
+
+
+def startup_script_string(log_directory: str, vm_name: str, zone: str) -> str:
+  """Returns the startup script string."""
+  return _STARTUP_ENTRY_STRING.format(
+      STARTUP_SCRIPT_STRING=_STARTUP_SCRIPT_STRING.format(
+          LOG_DIRECTORY=log_directory,
+          MY_INSTANCE_NAME=vm_name,
+          ZONE=zone,
+          REGION='-'.join(zone.split('-')[:-1]),
+          PROXY_URL='{PROXY_URL}',
+          VM_ID='{VM_ID}',
+          BACKEND_ID='{BACKEND_ID}',
+          HOSTNAME='{HOSTNAME}',
+          CONTAINER_NAME='{CONTAINER_NAME}',
+          CONTAINER_URL='{CONTAINER_URL}',
+          RESULT_JSON='{RESULT_JSON}',
+      )
+  )
