@@ -21,10 +21,21 @@ that are specific to the the xprofiler instance.
 
 import argparse
 from collections.abc import Mapping, Sequence
+import json
+import time
 import uuid
 
 from actions import action
 
+
+_WAIT_TIME_IN_SECONDS = 20
+_MAX_WAIT_TIME_IN_SECONDS = 300
+
+_OUTPUT_MESSAGE = r"""
+Instance for {LOG_DIRECTORY} has been created.
+You can access it at https://{BACKEND_ID}-dot-{REGION}.notebooks.googleusercontent.com
+Instance is hosted at {VM_NAME} VM.
+"""
 
 _STARTUP_SCRIPT_STRING = r"""#! /bin/bash
 echo \"Starting setup.\"
@@ -106,6 +117,10 @@ _DEFAULT_EXTRA_ARGS: Mapping[str, str] = {
     '--scopes': 'cloud-platform',
 }
 
+_DEFAULT_EXTRA_ARGS_DESCRIBE: Mapping[str, str] = {
+    '--format': 'json',
+}
+
 
 class Create(action.Command):
   """A command to delete a hosted TensorBoard instance."""
@@ -115,6 +130,7 @@ class Create(action.Command):
         name='create',
         description='Create a new hosted TensorBoard instance.',
     )
+    self.vm_name = f'{self.VM_BASE_NAME}-{uuid.uuid4()}'
 
   def add_subcommand(
       self,
@@ -191,16 +207,13 @@ class Create(action.Command):
     }
     extra_args |= {'--labels': self._format_label_string(labels)}
 
-    # Create the VM name if not provided.
-    vm_name = (
-        args.vm_name if args.vm_name else f'{self.VM_BASE_NAME}-{uuid.uuid4()}'
-    )
     if verbose:
-      print(f'Will create VM w/ name: {vm_name}')
+      print(f'Will create VM w/ name: {self.vm_name}')
 
     # Create the startup entry script.
     startup_entry_script = startup_script_string(
-        args.log_directory, vm_name, args.zone)
+        args.log_directory, self.vm_name, args.zone
+    )
 
     if verbose:
       print(f'Using startup script:\n{startup_entry_script}')
@@ -212,7 +225,7 @@ class Create(action.Command):
         'compute',
         'instances',
         'create',
-        vm_name,
+        self.vm_name,
     ]
     if args.zone:
       create_vm_command.append(f'--zone={args.zone}')
@@ -227,6 +240,102 @@ class Create(action.Command):
       print(create_vm_command)
 
     return create_vm_command
+
+  def _build_describe_command(
+      self,
+      args: argparse.Namespace,
+      extra_args: Mapping[str, str] | None = None,
+      verbose: bool = False,
+  ) -> Sequence[str]:
+    """Builds the describe command.
+
+    Note this should not be called directly by the user and should be called
+    by the run() method in the action module (using the subparser).
+
+    Args:
+      args: The arguments parsed from the command line.
+      extra_args: Any extra arguments to pass to the command.
+      verbose: Whether to print the command and other output.
+
+    Returns:
+      The command to describe the VM.
+    """
+    # Make sure we define this if not already since we'll build from it.
+    if extra_args is None:
+      extra_args = {}
+
+    # Include our extra args for creation (overwriting any user provided).
+    extra_args |= _DEFAULT_EXTRA_ARGS_DESCRIBE
+
+    describe_vm_command = [
+        self.GCLOUD_COMMAND,
+        'compute',
+        'instances',
+        'describe',
+        self.vm_name,
+    ]
+    if args.zone:
+      describe_vm_command.append(f'--zone={args.zone}')
+
+    # Extensions of any other arguments to the main command.
+    if extra_args:
+      describe_vm_command.extend(
+          [f'{arg}={value}' for arg, value in extra_args.items()]
+      )
+
+    if verbose:
+      print(describe_vm_command)
+
+    return describe_vm_command
+
+  def run(
+      self,
+      args: argparse.Namespace,
+      extra_args: Mapping[str, str] | None = None,
+      verbose: bool = False,
+  ) -> str:
+    """Run the command.
+
+    Args:
+      args: The arguments parsed from the command line.
+      extra_args: Any extra arguments to pass to the command.
+      verbose: Whether to print the command and other output.
+
+    Returns:
+      The output of the command.
+    """
+    if args.vm_name:
+      self.vm_name = args.vm_name
+
+    command = self._build_command(args, extra_args, verbose)
+    if verbose:
+      print(f'Command to run: {command}')
+
+    stdout: str = self._run_command(command, verbose=verbose)
+    timer = 0
+    print('Waiting for instance to be created. It can take a few minutes.')
+    while timer < _MAX_WAIT_TIME_IN_SECONDS:
+      timer += _WAIT_TIME_IN_SECONDS
+      time.sleep(_WAIT_TIME_IN_SECONDS)
+      command = self._build_describe_command(args, extra_args, verbose)
+      if verbose:
+        print(f'Command to run: {command}')
+      stdout_describe = self._run_command(command, verbose=verbose)
+      json_output = json.loads(stdout_describe)
+      if 'labels' in json_output and 'tb_backend_id' in json_output['labels']:
+        backend_id = json_output['labels']['tb_backend_id']
+        if verbose:
+          print(f'Backend id: {backend_id}')
+        print(
+            _OUTPUT_MESSAGE.format(
+                LOG_DIRECTORY=args.log_directory,
+                BACKEND_ID=backend_id,
+                REGION='-'.join(args.zone.split('-')[:-1]),
+                VM_NAME=self.vm_name,
+            )
+        )
+        return ''
+    return stdout
 
 
 def startup_script_string(log_directory: str, vm_name: str, zone: str) -> str:
