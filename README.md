@@ -85,8 +85,8 @@ xprofiler list -l $GCS_PATH
 
 ### Delete VM Instance
 
-To delete an instance, you'll need to specify either the GCS bucket path or the
-instance's name. Specifying the zone is required.
+To delete an instance, you'll need to specify either the GCS bucket paths or the
+VM instances' names. Specifying the zone is required.
 
 ```bash
 # Delete by associated GCS path
@@ -94,7 +94,7 @@ xprofiler delete -z $ZONE -l $GCS_PATH
 
 # Delete by VM instance name
 VM_NAME="xprofiler-8187640b-e612-4c47-b4df-59a7fc86b253"
-xprofiler delete -z $ZONE --name $VM_NAME
+xprofiler delete -z $ZONE --vm-name $VM_NAME
 ```
 
 ## Details on `xprofiler`
