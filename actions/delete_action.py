@@ -74,6 +74,7 @@ class Delete(action.Command):
         '--zone',
         '-z',
         metavar='ZONE_NAME',
+        required=True,
         help='The GCP zone to delete the instance in.',
     )
     delete_parser.add_argument(
@@ -181,9 +182,8 @@ class Delete(action.Command):
         'instances',
         'delete',
         '--quiet',  # Don't ask for confirmation or give extra details.
+        f'--zone={args.zone}'
     ]
-    if args.zone:
-      delete_vm_command.append(f'--zone={args.zone}')
 
     # Extensions of any other arguments to the main command.
     if extra_args:

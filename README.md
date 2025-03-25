@@ -86,8 +86,7 @@ xprofiler list -l $GCS_PATH
 ### Delete VM Instance
 
 To delete an instance, you'll need to specify either the GCS bucket path or the
-instance's name. It is not required, but it is recommended to also specify the
-zone.
+instance's name. Specifying the zone is required.
 
 ```bash
 # Delete by associated GCS path
@@ -169,7 +168,7 @@ LOG_PATH                            NAME                                        
 gs://example-bucket/my-profile-data xprofiler-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  us-central1-a
 ```
 
-If the [xprofiler abbreviation flag](#xprofiler-abbrev-) is used, then an
+If the [xprofiler abbreviation flag](#xprofiler-abbrev) is used, then an
 abbreviated output is given like so:
 
 ```
@@ -200,7 +199,6 @@ to give a specific name to the newly created VM.
 
 Lastly, there is a `--verbose` or `-v` flag that will provide information as the
 `xprofiler create` subcommand runs.
-
 
 ### Subcommand: `xprofiler list`
 
