@@ -22,7 +22,7 @@ is that this can be used to capture a profile from an instance using the
 
 import argparse
 from collections.abc import Mapping, Sequence
-from actions import action
+from xprofiler.src.cloud_diagnostics_xprof.actions import action
 
 
 class Capture(action.Command):

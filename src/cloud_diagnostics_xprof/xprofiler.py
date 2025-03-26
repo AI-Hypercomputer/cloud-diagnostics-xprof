@@ -25,12 +25,12 @@ import collections
 from collections.abc import Mapping, Sequence
 import itertools
 
-from actions import action
-from actions import capture_action
-from actions import connect_action
-from actions import create_action
-from actions import delete_action
-from actions import list_action
+from xprofiler.src.cloud_diagnostics_xprof.actions import action
+from xprofiler.src.cloud_diagnostics_xprof.actions import capture_action
+from xprofiler.src.cloud_diagnostics_xprof.actions import connect_action
+from xprofiler.src.cloud_diagnostics_xprof.actions import create_action
+from xprofiler.src.cloud_diagnostics_xprof.actions import delete_action
+from xprofiler.src.cloud_diagnostics_xprof.actions import list_action
 
 
 class XprofilerParser:
