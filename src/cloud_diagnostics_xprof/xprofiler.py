@@ -85,7 +85,7 @@ class XprofilerParser:
       args: argparse.Namespace,
       extra_args: Mapping[str, str] | None = None,
       verbose: bool = False,
-  ) -> str:
+  ) -> tuple[str, bool]:
     """Runs the command.
 
     Args:
@@ -287,16 +287,20 @@ def main():
   if args.command is None:
     xprofiler_parser.parser.print_help()
   else:
-    command_output = xprofiler_parser.run(
-        command_name=args.command,
-        args=args,
-        verbose=args.verbose,
-    )
-    xprofiler_parser.display_command_output(
-        command_output,
-        abbrev=args.abbrev,
-        verbose=args.verbose,
-    )
+    try:
+      command_output, display_output = xprofiler_parser.run(
+          command_name=args.command,
+          args=args,
+          verbose=args.verbose,
+      )
+      if display_output:
+        xprofiler_parser.display_command_output(
+            command_output,
+            abbrev=args.abbrev,
+            verbose=args.verbose,
+        )
+    except ValueError as e:
+      print(f'{e}')
 
 
 if __name__ == '__main__':

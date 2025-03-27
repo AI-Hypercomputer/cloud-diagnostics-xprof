@@ -293,7 +293,7 @@ class Create(action.Command):
       args: argparse.Namespace,
       extra_args: Mapping[str, str] | None = None,
       verbose: bool = False,
-  ) -> str:
+  ) -> tuple[str, bool]:
     """Run the command.
 
     Args:
@@ -334,8 +334,8 @@ class Create(action.Command):
                 VM_NAME=self.vm_name,
             )
         )
-        return ''
-    return stdout
+        break
+    return stdout, False
 
 
 def startup_script_string(log_directory: str, vm_name: str, zone: str) -> str:

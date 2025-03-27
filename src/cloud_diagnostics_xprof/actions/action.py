@@ -43,6 +43,11 @@ class Command(abc.ABC):
       Replacement('/', '--slash--'),
   )
 
+  # Default string reverse replacements
+  _DEFAULT_STRING_REVERSE_REPLACEMENTS: Sequence[Replacement] = (
+      Replacement('--slash--', '/'),
+  )
+
   def __init__(
       self,
       name: str,
@@ -91,7 +96,7 @@ class Command(abc.ABC):
       args: argparse.Namespace,
       extra_args: Mapping[str, str] | None = None,
       verbose: bool = False,
-  ) -> str:
+  ) -> tuple[str, bool]:
     """Run the command.
 
     Args:
@@ -107,7 +112,7 @@ class Command(abc.ABC):
       print(f'Command to run: {command}')
 
     stdout: str = self._run_command(command, verbose=verbose)
-    return stdout
+    return stdout, True
 
   def _run_command(
       self,

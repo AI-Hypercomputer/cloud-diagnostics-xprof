@@ -21,7 +21,11 @@ using the `xprofiler create` command.
 
 import argparse
 from collections.abc import Mapping, Sequence
+import tabulate
 from cloud_diagnostics_xprof.actions import action
+
+
+_PROXY_URL = 'https://{backend_id}-dot-{region}.notebooks.googleusercontent.com'
 
 
 class List(action.Command):
@@ -51,6 +55,7 @@ class List(action.Command):
         '--zone',
         '-z',
         metavar='ZONE_NAME',
+        required=True,
         help='The GCP zone to list the instances in.',
     )
     list_parser.add_argument(
@@ -128,6 +133,10 @@ class List(action.Command):
     if args.zone:
       list_vms_command.append(f'--zones={args.zone}')
 
+    list_vms_command.append(
+        '--format=table(labels.log_directory, labels.tb_backend_id, name)'
+    )
+
     # Process filter flag into filter_values
     filter_values: Mapping[str, list[str]] = {}
     if args.filter:
@@ -171,3 +180,41 @@ class List(action.Command):
       print(list_vms_command)
 
     return list_vms_command
+
+  def run(
+      self,
+      args: argparse.Namespace,
+      extra_args: Mapping[str, str] | None = None,
+      verbose: bool = False,
+  ) -> tuple[str, bool]:
+    """Run the command.
+
+    Args:
+      args: The arguments parsed from the command line.
+      extra_args: Any extra arguments to pass to the command.
+      verbose: Whether to print the command and other output.
+
+    Returns:
+      The output of the command.
+    """
+    command = self._build_command(args, extra_args, verbose)
+    if verbose:
+      print(f'Command to run: {command}')
+
+    stdout: str = self._run_command(command, verbose=verbose)
+    region = '-'.join(args.zone.split('-')[:-1])
+    output = [['Log_Directory', 'URL', 'Name']]
+    if stdout:
+      for line in stdout.splitlines()[1:]:  # Ignores header line.
+        log_directory, backend_id, name = line.split()
+        output.append([
+            'gs://'
+            + self._format_string_with_replacements(
+                log_directory, self._DEFAULT_STRING_REVERSE_REPLACEMENTS
+            ),
+            _PROXY_URL.format(backend_id=backend_id, region=region),
+            name,
+        ])
+    print(tabulate.tabulate(output, headers='firstrow'))
+    print('\n\n')
+    return stdout, False

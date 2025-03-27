@@ -120,23 +120,22 @@ class Connect(action.Command):
         filter=None,
         verbose=verbose,
     )
-    # Use extra args to format list command's output to get just the VM name.
-    list_extra_args = {'--format': 'table(name)'}
+
     # Each VM name is on a separate line after the header.
-    command_output = list_command.run(
+    command_output, _ = list_command.run(
         args=list_args,
-        extra_args=list_extra_args,
         verbose=verbose,
     )
     if verbose:
       print(command_output)
 
-    # Ignore the header and return just the VM names.
-    unused_header, *vm_names = (
+    vm_names = (
         command_output
         .strip()  # Removes the extra new line(s) that tends to be at the end.
-        .split('\n')
+        .split('\n')[1:]  # Ignores header line.
     )
+
+    vm_names = [vm_name.split()[2] for vm_name in vm_names]
 
     return vm_names
 
@@ -246,7 +245,7 @@ class Connect(action.Command):
       args: argparse.Namespace,
       extra_args: Mapping[str, str] | None = None,
       verbose: bool = False,
-  ) -> str:
+  ) ->  tuple[str, bool]:
     # If the user wants to disconnect, print a message.
     if args.disconnect:
       print('DISCONNECTING FROM VM...')
