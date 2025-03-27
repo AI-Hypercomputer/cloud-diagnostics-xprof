@@ -21,8 +21,8 @@ new instance using the `xprofiler create` command.
 
 import argparse
 from collections.abc import Mapping, Sequence
-from xprofiler.src.cloud_diagnostics_xprof.actions import action
-from xprofiler.src.cloud_diagnostics_xprof.actions import list_action
+from cloud_diagnostics_xprof.actions import action
+from cloud_diagnostics_xprof.actions import list_action
 
 
 class Connect(action.Command):

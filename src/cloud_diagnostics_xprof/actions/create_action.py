@@ -25,7 +25,7 @@ import json
 import time
 import uuid
 
-from xprofiler.src.cloud_diagnostics_xprof.actions import action
+from cloud_diagnostics_xprof.actions import action
 
 
 _WAIT_TIME_IN_SECONDS = 20
