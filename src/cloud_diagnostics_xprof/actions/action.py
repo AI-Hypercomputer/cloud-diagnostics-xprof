@@ -96,7 +96,7 @@ class Command(abc.ABC):
       args: argparse.Namespace,
       extra_args: Mapping[str, str] | None = None,
       verbose: bool = False,
-  ) -> tuple[str, bool]:
+  ) -> str:
     """Run the command.
 
     Args:
@@ -112,7 +112,7 @@ class Command(abc.ABC):
       print(f'Command to run: {command}')
 
     stdout: str = self._run_command(command, verbose=verbose)
-    return stdout, True
+    return stdout
 
   def _run_command(
       self,

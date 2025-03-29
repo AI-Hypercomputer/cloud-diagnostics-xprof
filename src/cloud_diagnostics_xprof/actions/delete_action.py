@@ -110,7 +110,7 @@ class Delete(action.Command):
     )
 
     # Each VM name is on a separate line after the header.
-    command_output, _ = list_command.run(
+    command_output = list_command.run(
         args=list_args,
         verbose=verbose,
     )

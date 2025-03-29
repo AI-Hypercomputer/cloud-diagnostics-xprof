@@ -186,7 +186,7 @@ class List(action.Command):
       args: argparse.Namespace,
       extra_args: Mapping[str, str] | None = None,
       verbose: bool = False,
-  ) -> tuple[str, bool]:
+  ) -> str:
     """Run the command.
 
     Args:
@@ -217,4 +217,4 @@ class List(action.Command):
         ])
     print(tabulate.tabulate(output, headers='firstrow'))
     print('\n\n')
-    return stdout, False
+    return stdout

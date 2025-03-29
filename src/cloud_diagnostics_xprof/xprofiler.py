@@ -85,7 +85,7 @@ class XprofilerParser:
       args: argparse.Namespace,
       extra_args: Mapping[str, str] | None = None,
       verbose: bool = False,
-  ) -> tuple[str, bool]:
+  ) -> str:
     """Runs the command.
 
     Args:
@@ -280,6 +280,14 @@ def main():
           'list': list_action.List(),
       },
   )
+  # Define whether command should display output.
+  display_output_for_command = {
+      'capture': True,
+      'connect': False,
+      'create': False,
+      'delete': False,
+      'list': False,
+  }
   # Parse args from CLI.
   args = xprofiler_parser.parser.parse_args()
 
@@ -288,12 +296,12 @@ def main():
     xprofiler_parser.parser.print_help()
   else:
     try:
-      command_output, display_output = xprofiler_parser.run(
+      command_output = xprofiler_parser.run(
           command_name=args.command,
           args=args,
           verbose=args.verbose,
       )
-      if display_output:
+      if display_output_for_command.get(args.command, False):
         xprofiler_parser.display_command_output(
             command_output,
             abbrev=args.abbrev,

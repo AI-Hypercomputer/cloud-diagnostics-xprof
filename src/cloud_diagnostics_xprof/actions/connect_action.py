@@ -122,7 +122,7 @@ class Connect(action.Command):
     )
 
     # Each VM name is on a separate line after the header.
-    command_output, _ = list_command.run(
+    command_output = list_command.run(
         args=list_args,
         verbose=verbose,
     )
@@ -245,7 +245,7 @@ class Connect(action.Command):
       args: argparse.Namespace,
       extra_args: Mapping[str, str] | None = None,
       verbose: bool = False,
-  ) ->  tuple[str, bool]:
+  ) ->  str:
     # If the user wants to disconnect, print a message.
     if args.disconnect:
       print('DISCONNECTING FROM VM...')

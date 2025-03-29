@@ -252,7 +252,7 @@ class Capture(action.Command):
       args: argparse.Namespace,
       extra_args: Mapping[str, str] | None = None,
       verbose: bool = False,
-  ) -> tuple[str, bool]:
+  ) -> str:
 
     stdout_all_hosts: list[str] = []
 
@@ -270,4 +270,4 @@ class Capture(action.Command):
       )
       stdout_all_hosts.append(single_host_stdout)
 
-    return '\n'.join(stdout_all_hosts), True
+    return '\n'.join(stdout_all_hosts)
