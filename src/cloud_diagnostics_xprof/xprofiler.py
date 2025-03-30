@@ -107,167 +107,33 @@ class XprofilerParser:
     )
     return command_output
 
-  @staticmethod
-  def _parse_table(
-      table: str | None = None,
-      verbose: bool = False,
-  ) -> Mapping[str, Sequence[str]]:
-    """Parses the table from the output of the create VM command.
-
-    Args:
-      table: The table to parse.
-      verbose: Whether to print verbose output.
-
-    Returns:
-      A mapping of header to list of values.
-    """
-
-    # If no string to parse, return empty dict.
-    if not table:
-      return {}
-
-    # Remove any excess whitespace & new lines before splitting lines.
-    table = table.strip()
-
-    table_lines = table.split('\n')
-    header_str = table_lines[0]
-    headers = header_str.split()
-
-    # Find where the next column in the header starts.
-    header_locations: dict[str, tuple[int, int]] = {}
-    for header, next_header in itertools.zip_longest(headers, headers[1:]):
-      start = header_str.index(header)
-      # End is either where the next header starts or the end of the string.
-      # Assume no next header means go to the end.
-      end = (
-          # Ensure we start looking from the value of interests starts.
-          header_str.index(next_header, start) if next_header
-          else XprofilerParser._END_OF_LINE
-      )
-      header_locations[header] = (start, end)
-    if verbose:
-      print(f'HEADERS: {headers}')
-
-    # Find all other info from next lines
-    table_values = collections.defaultdict(list)
-    for line in table_lines[1:]:
-      line_values = line.split()
-      if verbose:
-        print(f'LINE VALUES:\n{line_values}')
-      for header, (start, end) in header_locations.items():
-        if end == XprofilerParser._END_OF_LINE:
-          value = line[start:]
-        else:
-          value = line[start:end]
-        table_values[header].append(value.strip())
-
-    if verbose:
-      print('------------------table results-------------------')
-      print(table_values)
-
-    return table_values
-
-  @staticmethod
-  def _get_table_string(
-      table: Mapping[str, Sequence[str]],
-      display_header: bool = True,
-      separator: str = '  ',
-      column_filter: Sequence[str] | None = None,
-      verbose: bool = False,
-  ) -> str:
-    """Returns string of table in a human readable format from a mapping.
-
-    Args:
-      table: A mapping where keys are column headers and values are sequences of
-        single strings.
-      display_header: Whether to include the header row.
-      separator: The string to use as a separator between columns.
-      column_filter: Column headers to include in the output. If None, all
-        columns are included.
-      verbose: Whether to print verbose output.
-
-    Returns:
-        A string representing the formatted table.
-    """
-    headers = table.keys()
-    # If no filter is provided, show all columns.
-    filter_columns = column_filter if column_filter else headers
-    if verbose:
-      print(f'HEADERS: {headers}')
-    values = [table[header] for header in headers if header in filter_columns]
-    if verbose:
-      print(f'VALUES: {values}')
-
-    # Calculate column widths based on header and value lengths.
-    column_widths = {
-        header: max(len(header), max(len(val) for val in values))
-        for header, values in zip(headers, values)
-        if header in filter_columns
-    }
-    if verbose:
-      print(f'COLUMN WIDTHS: {column_widths}')
-
-    # Create header row.
-    header_row = separator.join(
-        header.ljust(width)
-        for header, width in column_widths.items()
-    )
-    if verbose:
-      print(f'HEADER ROW: {header_row}')
-
-    # Create value rows.
-    value_rows = []
-    if values:
-      for row_values in zip(*values):
-        row_values = separator.join(
-            val.ljust(width) if val else ''.ljust(width)
-            for val, width in zip(row_values, column_widths.values())
-        )
-        # Remove any trailing whitespace after joining.
-        value_rows.append(row_values.strip())
-
-    if verbose:
-      print(f'VALUE ROWS: {value_rows}')
-      print(f'{display_header=}')
-
-    # Combine header and value rows.
-    header_string = f'{header_row}\n' if display_header else ''
-    table_string = header_string + '\n'.join(value_rows)
-
-    return table_string
-
-  @staticmethod
   def display_command_output(
+      self,
+      command_name: str,
       command_output: str,
-      abbrev: bool = False,
+      *,
+      args: argparse.Namespace,
+      extra_args: Mapping[str, str] | None = None,
       verbose: bool = False,
   ) -> None:
-    """Displays the command output.
+    """Displays the command output as defined by the subcommand.
 
     Args:
+      command_name: The name of the command to run for subparser.
       command_output: The output of the command.
-      abbrev: Whether to abbreviate the output.
-      verbose: Whether to print the output.
+      args: The arguments parsed from the command line.
+      extra_args: Any extra arguments to pass to the command.
+      verbose: Whether to print other informational output.
     """
-    if verbose:
-      print(f'{abbrev=}')
-      print(command_output)
+    if command_name not in self.commands:
+      raise ValueError(f'Command `{command_name}` not implemented yet.')
 
-    table_mapping = XprofilerParser._parse_table(
-        table=command_output,
+    self.commands[command_name].display(
+        display_str=command_output,
+        args=args,
+        extra_args=extra_args,
         verbose=verbose,
     )
-    # Only display the VM name if abbreviated is requested
-    table_string = XprofilerParser._get_table_string(
-        table=table_mapping,
-        display_header=(not abbrev),
-        column_filter=(
-            ['NAME'] if abbrev else None
-        ),
-        verbose=verbose,
-    )
-
-    print(table_string)
 
 
 def main():
@@ -280,14 +146,7 @@ def main():
           'list': list_action.List(),
       },
   )
-  # Define whether command should display output.
-  display_output_for_command = {
-      'capture': True,
-      'connect': False,
-      'create': False,
-      'delete': False,
-      'list': False,
-  }
+
   # Parse args from CLI.
   args = xprofiler_parser.parser.parse_args()
 
@@ -301,12 +160,13 @@ def main():
           args=args,
           verbose=args.verbose,
       )
-      if display_output_for_command.get(args.command, False):
-        xprofiler_parser.display_command_output(
-            command_output,
-            abbrev=args.abbrev,
-            verbose=args.verbose,
-        )
+
+      xprofiler_parser.display_command_output(
+          command_name=args.command,
+          command_output=command_output,
+          args=args,
+          verbose=args.verbose,
+      )
     except ValueError as e:
       print(f'{e}')
 

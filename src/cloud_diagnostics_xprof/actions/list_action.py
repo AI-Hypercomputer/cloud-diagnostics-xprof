@@ -21,15 +21,15 @@ using the `xprofiler create` command.
 
 import argparse
 from collections.abc import Mapping, Sequence
-import tabulate
 from cloud_diagnostics_xprof.actions import action
-
-
-_PROXY_URL = 'https://{backend_id}-dot-{region}.notebooks.googleusercontent.com'
 
 
 class List(action.Command):
   """A command to list a hosted TensorBoard instance."""
+
+  _PROXY_URL = (
+      'https://{backend_id}-dot-{region}.notebooks.googleusercontent.com'
+  )
 
   def __init__(self):
     super().__init__(
@@ -181,40 +181,63 @@ class List(action.Command):
 
     return list_vms_command
 
-  def run(
+  def display(
       self,
+      display_str: str | None,
+      *,
       args: argparse.Namespace,
       extra_args: Mapping[str, str] | None = None,
       verbose: bool = False,
-  ) -> str:
-    """Run the command.
+  ) -> None:
+    """Display provided string after potential formatting.
 
     Args:
+      display_str: The string to display.
       args: The arguments parsed from the command line.
       extra_args: Any extra arguments to pass to the command.
       verbose: Whether to print the command and other output.
-
-    Returns:
-      The output of the command.
     """
-    command = self._build_command(args, extra_args, verbose)
-    if verbose:
-      print(f'Command to run: {command}')
 
-    stdout: str = self._run_command(command, verbose=verbose)
-    region = '-'.join(args.zone.split('-')[:-1])
-    output = [['Log_Directory', 'URL', 'Name']]
-    if stdout:
-      for line in stdout.splitlines()[1:]:  # Ignores header line.
-        log_directory, backend_id, name = line.split()
-        output.append([
+    if display_str:
+      # Define the columns using the defaults values.
+      columns = self.TABLE_COLUMNS
+      # Just the region from the zone. (e.g. us-central1-a -> us-central1)
+      region = '-'.join(args.zone.split('-')[:-1])
+
+      lines = []
+      for line in display_str.splitlines()[1:]:  # Ignores header line.
+        split_line = line.split()
+        if len(split_line) != len(columns):
+          continue
+        log_directory, backend_id, name = split_line
+        # Make sure the log directory is starts with gs://
+        log_directory_formatted = (
             'gs://'
             + self._format_string_with_replacements(
-                log_directory, self._DEFAULT_STRING_REVERSE_REPLACEMENTS
-            ),
-            _PROXY_URL.format(backend_id=backend_id, region=region),
+                log_directory,
+                self._DEFAULT_STRING_REVERSE_REPLACEMENTS,
+            )
+        )
+        backend_id_formatted = self._PROXY_URL.format(
+            backend_id=backend_id,
+            region=region,
+        )
+        lines.append([
+            log_directory_formatted,
+            backend_id_formatted,
             name,
         ])
-    print(tabulate.tabulate(output, headers='firstrow'))
-    print('\n\n')
-    return stdout
+
+      # Display the table string.
+      data_table = self.create_data_table(
+          columns=columns,
+          lines=lines,
+          verbose=verbose,
+      )
+
+      formatted_data_table_string = self.display_table_string(
+          data_table=data_table,
+          verbose=verbose,
+      )
+
+      print(formatted_data_table_string)

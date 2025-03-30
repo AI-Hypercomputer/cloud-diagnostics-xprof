@@ -24,6 +24,7 @@ import argparse
 from collections.abc import Mapping, Sequence
 import dataclasses
 import subprocess
+import tabulate
 
 
 class Command(abc.ABC):
@@ -31,6 +32,11 @@ class Command(abc.ABC):
 
   GCLOUD_COMMAND: str = 'gcloud'
   VM_BASE_NAME = 'xprofiler'
+  TABLE_COLUMNS: Sequence[str] = (
+      'Log_Directory',
+      'URL',
+      'Name',
+  )
 
   @dataclasses.dataclass(frozen=True)
   class Replacement:
@@ -212,3 +218,95 @@ class Command(abc.ABC):
     )
 
     return labels_string
+
+  def create_data_table(
+      self,
+      *,
+      columns: Sequence[str],
+      lines: Sequence[Sequence[str]],
+      verbose: bool = False,
+  ) -> Mapping[str, Sequence[str]]:
+    """Returns a mapping of column headers to values from a table string.
+
+    Args:
+      columns: The columns of the table.
+      lines: The lines of the table.
+      verbose: Whether to print verbose output.
+
+    Returns:
+      A mapping of column headers to values from a table string.
+    """
+    # For referennce of order of columns.
+    columns_index: dict[int, str] = dict(enumerate(columns))
+
+    data_table: dict[str, list[str]] = {
+        col: []
+        for col in columns_index.values()
+    }
+
+    if verbose:
+      print(f'COLUMNS: {columns_index}')
+      print('Creating data table...')
+
+    for line_number, line in enumerate(lines):
+      # Check that the same number of columns and items in each line.
+      if len(line) != len(columns_index):
+        raise ValueError(
+            f'Number of items in line {line_number} ({len(line)})'
+            f' does not match number of columns ({len(columns_index)})'
+        )
+      for n_item, column_value in enumerate(line):
+        # Make sure we use the same order for the columns as the line values.
+        data_table[columns_index[n_item]].append(column_value)
+      if verbose:
+        print(f'line {line_number} added to data table')
+
+    if verbose:
+      print(f'DATA TABLE: {data_table}')
+
+    return data_table
+
+  def display_table_string(
+      self,
+      data_table: Mapping[str, Sequence[str]],
+      *,
+      verbose: bool = False,
+  ) -> str:
+    """Returns a formatted table string from data table.
+
+    Args:
+      data_table: The data table to display.
+      verbose: Whether to print the table.
+
+    Returns:
+      The formatted table string.
+    """
+    if verbose:
+      print(f'Print formatted TABLE: {data_table}')
+
+    # Just the first row is the headers.
+    header = list(data_table.keys())
+    data_rows = [list(row) for row in zip(*data_table.values())]
+    lines: list[list[str]] = [header] + data_rows
+
+    formatted_string = tabulate.tabulate(lines, headers='firstrow')
+
+    return formatted_string
+
+  @abc.abstractmethod
+  def display(
+      self,
+      display_str: str | None,
+      *,
+      args: argparse.Namespace,
+      extra_args: Mapping[str, str] | None = None,
+      verbose: bool = False,
+  ) -> None:
+    """Display provided string after potential formatting.
+
+    Args:
+      display_str: The string to display.
+      args: The arguments parsed from the command line.
+      extra_args: Any extra arguments to pass to the command.
+      verbose: Whether to print the command and other output.
+    """

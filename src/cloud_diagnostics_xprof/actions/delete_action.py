@@ -200,3 +200,22 @@ class Delete(action.Command):
       print(delete_vm_command)
 
     return delete_vm_command
+
+  def display(
+      self,
+      display_str: str | None,
+      *,
+      args: argparse.Namespace,
+      extra_args: Mapping[str, str] | None = None,
+      verbose: bool = False,
+  ) -> None:
+    """Display provided string after potential formatting.
+
+    Args:
+      display_str: The string to display.
+      args: The arguments parsed from the command line.
+      extra_args: Any extra arguments to pass to the command.
+      verbose: Whether to print the command and other output.
+    """
+    # No display string is needed for the delete command.
+    return None
