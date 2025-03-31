@@ -48,8 +48,11 @@ When the command completes, you will see it return information about the
 instance created, similar to below:
 
 ```
-LOG_PATH                            NAME                                            ZONE
-gs://example-bucket/my-profile-data xprofiler-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  us-central1-a
+Waiting for instance to be created. It can take a few minutes.
+
+Instance for gs://example-bucket/my-profile-data has been created.
+You can access it at https://42rc2772e3vg2276-dot-us-central1.notebooks.googleusercontent.com
+Instance is hosted at xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef VM.
 ```
 
 This will create a VM instance with TensorBoard installed. Note that this
@@ -72,9 +75,10 @@ This will output something like the following if there are instances matching
 the list criteria:
 
 ```
-LOG_PATH                                   NAME                                            ZONE
-gs://example-bucket/my-other-profile-data  xprofiler-8187640b-e612-4c47-b4df-59a7fc86b253  us-central1-a
-gs://example-bucket/my-profile-data        xprofiler-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  us-central1-a
+Log_Directory                                 URL                                                                       Name
+-----------------------------------------  ------------------------------------------------------------------------  ------------------------------------------
+gs://example-bucket/my-other-profile-data  https://27ac8347d8af0142-dot-us-central1.notebooks.googleusercontent.com  xprof-8187640b-e612-4c47-b4df-59a7fc86b253
+gs://example-bucket/my-profile-data        https://42rc2772e3vg2276-dot-us-central1.notebooks.googleusercontent.com  xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef
 ```
 
 Note you can specify the GCS bucket to get just that one associated instance:
@@ -93,7 +97,7 @@ VM instances' names. Specifying the zone is required.
 xprof delete -z $ZONE -l $GCS_PATH
 
 # Delete by VM instance name
-VM_NAME="xprofiler-8187640b-e612-4c47-b4df-59a7fc86b253"
+VM_NAME="xprof-8187640b-e612-4c47-b4df-59a7fc86b253"
 xprof delete -z $ZONE --vm-name $VM_NAME
 ```
 
@@ -132,16 +136,16 @@ For example, calling `xprof list` might give the following output:
 
 ```
 LOG_PATH                                   NAME                                            ZONE
-gs://example-bucket/my-other-profile-data  xprofiler-8187640b-e612-4c47-b4df-59a7fc86b253  us-central1-a
-gs://example-bucket/my-profile-data        xprofiler-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  us-central1-a
+gs://example-bucket/my-other-profile-data  xprof-8187640b-e612-4c47-b4df-59a7fc86b253  us-central1-a
+gs://example-bucket/my-profile-data        xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  us-central1-a
 ```
 
 But calling with `xprof --abbrev list` will instead print out an abbreviated
 form of the above output where each item is displayed on a new line:
 
 ```
-xprofiler-8187640b-e612-4c47-b4df-59a7fc86b253
-xprofiler-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef
+xprof-8187640b-e612-4c47-b4df-59a7fc86b253
+xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef
 ```
 
 ### Subcommand: `xprof create`
@@ -165,14 +169,14 @@ newly created VM instances is printed out like the example below:
 
 ```
 LOG_PATH                            NAME                                            ZONE
-gs://example-bucket/my-profile-data xprofiler-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  us-central1-a
+gs://example-bucket/my-profile-data xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  us-central1-a
 ```
 
 If the [xprof abbreviation flag](#xprof-abbrev) is used, then an
 abbreviated output is given like so:
 
 ```
-xprofiler-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef
+xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef
 ```
 
 #### `xprof create --help`
@@ -194,7 +198,7 @@ It is recommended to also provide a zone with `--zone` or `-z` but it is
 optional.
 
 By default, the VM instance's name will be uniquely created prepended with
-`xprofiler-`. However, this can be specified with the `--vm-name` or `-n` flag
+`xprof-`. However, this can be specified with the `--vm-name` or `-n` flag
 to give a specific name to the newly created VM.
 
 Lastly, there is a `--verbose` or `-v` flag that will provide information as the
@@ -220,16 +224,16 @@ instances is printed out like the example below:
 
 ```
 LOG_PATH                                   NAME                                            ZONE
-gs://example-bucket/my-other-profile-data  xprofiler-8187640b-e612-4c47-b4df-59a7fc86b253  us-central1-a
-gs://example-bucket/my-profile-data        xprofiler-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  us-central1-a
+gs://example-bucket/my-other-profile-data  xprof-8187640b-e612-4c47-b4df-59a7fc86b253  us-central1-a
+gs://example-bucket/my-profile-data        xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  us-central1-a
 ```
 
 If the [xprof abbreviation flag](#xprof-abbrev-) is used, then an
 abbreviated output is given like so:
 
 ```
-xprofiler-8187640b-e612-4c47-b4df-59a7fc86b253
-xprofiler-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef
+xprof-8187640b-e612-4c47-b4df-59a7fc86b253
+xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef
 ```
 
 #### `xprof list --help`

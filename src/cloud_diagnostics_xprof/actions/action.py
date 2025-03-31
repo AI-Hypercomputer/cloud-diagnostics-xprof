@@ -31,7 +31,7 @@ class Command(abc.ABC):
   """A standard implementation of a CLI command."""
 
   GCLOUD_COMMAND: str = 'gcloud'
-  VM_BASE_NAME = 'xprofiler'
+  VM_BASE_NAME = 'xprof'
   TABLE_COLUMNS: Sequence[str] = (
       'Log_Directory',
       'URL',
