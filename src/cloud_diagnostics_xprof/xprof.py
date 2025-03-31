@@ -14,7 +14,7 @@
 
 """CLI tool to manage hosted TensorBoard instances.
 
-xprofiler wraps existing tools and commands to provide a more user friendly
+xprof wraps existing tools and commands to provide a more user friendly
 interface for managing hosted TensorBoard instances. Specifically, it provides
 a CLI interface to create, list, and delete hosted TensorBoard instances
 centered around a log directory as the 'primary key'.
@@ -33,8 +33,8 @@ from cloud_diagnostics_xprof.actions import delete_action
 from cloud_diagnostics_xprof.actions import list_action
 
 
-class XprofilerParser:
-  """Parser for the xprofiler CLI."""
+class XprofParser:
+  """Parser for the xprof CLI."""
 
   _END_OF_LINE: int = -1
 
@@ -137,7 +137,7 @@ class XprofilerParser:
 
 
 def main():
-  xprofiler_parser: XprofilerParser = XprofilerParser(
+  xprof_parser: XprofParser = XprofParser(
       commands={
           'capture': capture_action.Capture(),
           'connect': connect_action.Connect(),
@@ -148,20 +148,20 @@ def main():
   )
 
   # Parse args from CLI.
-  args = xprofiler_parser.parser.parse_args()
+  args = xprof_parser.parser.parse_args()
 
   # Run command (prints output as necessary).
   if args.command is None:
-    xprofiler_parser.parser.print_help()
+    xprof_parser.parser.print_help()
   else:
     try:
-      command_output = xprofiler_parser.run(
+      command_output = xprof_parser.run(
           command_name=args.command,
           args=args,
           verbose=args.verbose,
       )
 
-      xprofiler_parser.display_command_output(
+      xprof_parser.display_command_output(
           command_name=args.command,
           command_output=command_output,
           args=args,

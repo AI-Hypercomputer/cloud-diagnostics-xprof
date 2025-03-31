@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A list command implementation for the xprofiler CLI.
+"""A list command implementation for the xprof CLI.
 
-This command is used as part of the xprofiler CLI to list hosted TensorBoard
+This command is used as part of the xprof CLI to list hosted TensorBoard
 instances. The intention is that this can be used after creation of instances
-using the `xprofiler create` command.
+using the `xprof create` command.
 """
 
 import argparse

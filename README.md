@@ -109,6 +109,7 @@ The `xprof` command has additional subcommands that can be invoked to
 [create](#subcommand-xprof-create) VM instances,
 [list](#subcommand-xprof-list) VM instances,
 [delete](#subcommand-xprof-delete) instances, etc.
+
 However, the main `xprof` command has some additional options without
 invoking a subcommand.
 
@@ -172,7 +173,7 @@ LOG_PATH                            NAME                                        
 gs://example-bucket/my-profile-data xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  us-central1-a
 ```
 
-If the [xprof abbreviation flag](#xprof-abbrev) is used, then an
+If the [xprof abbreviation flag](#xprof-abbrev-) is used, then an
 abbreviated output is given like so:
 
 ```

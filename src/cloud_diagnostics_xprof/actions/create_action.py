@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A create command implementation for the xprofiler CLI.
+"""A create command implementation for the xprof CLI.
 
-This command is used as part of the xprofiler CLI to create a hosted TensorBoard
+This command is used as part of the xprof CLI to create a hosted TensorBoard
 instance. This will include other metadata such as labels to the log directory
-that are specific to the the xprofiler instance.
+that are specific to the the xprof instance.
 """
 
 import argparse

@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A delete command implementation for the xprofiler CLI.
+"""A delete command implementation for the xprof CLI.
 
-This command is used as part of the xprofiler CLI to delete a hosted TensorBoard
+This command is used as part of the xprof CLI to delete a hosted TensorBoard
 instance. The intention is that this can be used after creation of a new
-instance using the `xprofiler create` command (versus using for general instance
+instance using the `xprof create` command (versus using for general instance
 deletion).
 """
 

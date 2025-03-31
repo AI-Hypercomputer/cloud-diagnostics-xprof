@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A profile capture command implementation for the xprofiler CLI.
+"""A profile capture command implementation for the xprof CLI.
 
-This command is used as part of the xprofiler CLI to capture a profile from a
+This command is used as part of the xprof CLI to capture a profile from a
 running job that can be viewed in a hosted TensorBoard instance. The intention
 is that this can be used to capture a profile from an instance using the
-`xprofiler capture` command.
+`xprof capture` command.
 """
 
 import argparse

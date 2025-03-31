@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Base class for defining the interface of actions by xprofiler via subparsers.
+"""Base class for defining the interface of actions by xprof via subparsers.
 
-The Command class is used to define the interface to include in the xprofiler
+The Command class is used to define the interface to include in the xprof
 parser. It is used to create a command line interface (CLI) tool that
 allows users to perform various actions through a subparser.
 """

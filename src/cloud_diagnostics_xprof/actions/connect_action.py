@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A connect command implementation for the xprofiler CLI.
+"""A connect command implementation for the xprof CLI.
 
-This command is used as part of the xprofiler CLI to connect to a hosted
+This command is used as part of the xprof CLI to connect to a hosted
 TensorBoard instance. The intention is that this can be used after creation of a
-new instance using the `xprofiler create` command.
+new instance using the `xprof create` command.
 """
 
 import argparse
