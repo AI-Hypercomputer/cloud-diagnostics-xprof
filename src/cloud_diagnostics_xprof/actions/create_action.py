@@ -26,6 +26,7 @@ import time
 import uuid
 
 from cloud_diagnostics_xprof.actions import action
+from cloud_diagnostics_xprof.actions import list_action
 
 
 _WAIT_TIME_IN_SECONDS = 20
@@ -307,11 +308,71 @@ class Create(action.Command):
     if args.vm_name:
       self.vm_name = args.vm_name
 
+    # Check if the VM already exists.
+    if verbose:
+      print('Checking if VM already exists.')
+    list_command = list_action.List()
+    list_args = argparse.Namespace(
+        zone=args.zone,
+        log_directory=[
+            args.log_directory,  # Ensure this is treated as one item.
+        ],
+        filter=None,
+        verbose=verbose,
+    )
+    list_command_output = list_command.run(list_args, verbose=verbose)
+    if verbose:
+      print(list_command_output)
+
+    # Extract the VM name from the list command output.
+    all_lines = list_command_output.strip().split('\n')
+    columns: list[str] = all_lines.pop(0).split()
+    lines = [line.split() for line in all_lines]
+    data_table = self.create_data_table(
+        columns=columns,
+        lines=lines,
+        verbose=verbose,
+    )
+    # Make sure we can compare with what we expect the output to looks like.
+    log_directory_formatted = self._format_string_with_replacements(
+        original_string=args.log_directory,
+        replacements=self._DEFAULT_STRING_REPLACEMENTS,
+    )
+
+    # Ask user if they want to create another instance or quit.
+    if log_directory_formatted in data_table.get('LOG_DIRECTORY', []):
+      print(
+          f'Instance for {args.log_directory} already exists.\n'
+      )
+      # Display the instances & information to the user.
+      list_command.display(
+          display_str=list_command_output,
+          args=list_args,
+          verbose=verbose,
+      )
+      print('\n')  # Just to make it visually clearer for the user.
+
+      # Prompt user if they want to continue or quit.
+      message_to_user = (
+          'Do you want to continue to create another instance with the same '
+          'log directory? (y/n)\n'
+      )
+      # Don't proceed is user does not say 'Y'/'y'
+      user_input = input(message_to_user).lower()
+      if user_input != 'y':
+        print('Exiting...')
+        stdout = list_command_output
+        return stdout
+
+    if verbose:
+      print('Creating VM...')
+
     command = self._build_command(args, extra_args, verbose)
     if verbose:
       print(f'Command to run: {command}')
 
     stdout: str = self._run_command(command, verbose=verbose)
+
     timer = 0
     print('Waiting for instance to be created. It can take a few minutes.')
     while timer < _MAX_WAIT_TIME_IN_SECONDS:
@@ -353,8 +414,9 @@ class Create(action.Command):
       extra_args: Any extra arguments to pass to the command.
       verbose: Whether to print the command and other output.
     """
-    # No display string is needed for the delete command.
+    # No display string is needed for the create command.
     return None
+
 
 def startup_script_string(log_directory: str, vm_name: str, zone: str) -> str:
   """Returns the startup script string."""
