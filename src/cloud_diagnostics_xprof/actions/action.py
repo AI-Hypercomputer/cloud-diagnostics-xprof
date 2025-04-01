@@ -149,9 +149,20 @@ class Command(abc.ABC):
         output = diag.stdout
         if verbose:
           print(f'Output: {diag.stdout}')
-
     except subprocess.CalledProcessError as e:
-      raise ValueError(f'Command failed with following error: {e}') from e
+      # Only print the full subprocess error if in verbose mode.
+      if verbose:
+        # Print the simple error stderr from the shell command.
+        if e.stderr:
+          print('Command failed. Standard Error (stderr):')
+          print(e.stderr)
+        print(f'Command failed. Subprocess error:\n{e}')
+      # For readability, custom error message has stderr from shell command.
+      error_message = (
+          f'Command failed with return code {e.returncode}.\n'
+          f'{e.stderr if e.stderr else ""}'
+      )
+      raise ValueError(error_message) from e
 
     return output
 
