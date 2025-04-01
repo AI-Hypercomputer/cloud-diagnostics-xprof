@@ -26,6 +26,7 @@ import time
 import uuid
 
 from cloud_diagnostics_xprof.actions import action
+from cloud_diagnostics_xprof.actions import delete_action
 from cloud_diagnostics_xprof.actions import list_action
 
 
@@ -37,6 +38,9 @@ Instance for {LOG_DIRECTORY} has been created.
 You can access it at https://{BACKEND_ID}-dot-{REGION}.notebooks.googleusercontent.com
 Instance is hosted at {VM_NAME} VM.
 """
+
+_TB_LAUNCHED_LABEL = 'tb_launched_ts'
+_TB_BACKEND_LABEL = 'tb_backend_id'
 
 _STARTUP_SCRIPT_STRING = r"""#! /bin/bash
 echo \"Starting setup.\"
@@ -52,6 +56,16 @@ tensorboardvenv/bin/pip3 install tensorboard_plugin_profile
 tensorboardvenv/bin/pip3 install importlib_resources
 tensorboardvenv/bin/pip3 install etils
 tensorboard --logdir {LOG_DIRECTORY} --host 0.0.0.0 --port 6006 &
+# Label VM with the current timestamp if TB has launched successfully.
+sleep 12  # Buffer time for TB to launch (just in case).
+if ps -ef | grep tensorboard > /dev/null; then
+    echo \"$(date): TensorBoard running.\"
+    TB_LAUNCHED_TS=$(date +%s)
+    gcloud compute instances add-labels {MY_INSTANCE_NAME} --zone={ZONE} --labels {TB_LAUNCHED_LABEL}=\"\$TB_LAUNCHED_TS\"
+else
+    echo \"$(date): TensorBoard failed to launch. Exiting...\"
+    exit 1
+fi
 # Setup forwarding agent and proxy
 echo \"Setup forwarding agent and proxy.\"
 # Remove existing docker packages
@@ -97,7 +111,7 @@ docker run -d \
 --name \"\${CONTAINER_NAME}\" \
 \"\${CONTAINER_URL}\" &
 echo \"Setting endpoint info in metadata.\"
-gcloud compute instances add-labels {MY_INSTANCE_NAME} --zone={ZONE} --labels tb_backend_id=\"\${BACKEND_ID}\"
+gcloud compute instances add-labels {MY_INSTANCE_NAME} --zone={ZONE} --labels {TB_BACKEND_LABEL}=\"\${BACKEND_ID}\"
 echo \"Startup Finished\"
 """
 
@@ -289,6 +303,23 @@ class Create(action.Command):
 
     return describe_vm_command
 
+  def _delete_vm(
+      self,
+      *,
+      vm_name: str,
+      zone: str,
+      verbose: bool = False,
+  ) -> str:
+    """Deletes the VM that was created."""
+    delete_command = delete_action.Delete()
+    delete_args = argparse.Namespace(
+        vm_name=[vm_name],
+        log_directory=None,
+        zone=zone,
+    )
+    delete_command_output = delete_command.run(delete_args, verbose=verbose)
+    return delete_command_output
+
   def run(
       self,
       args: argparse.Namespace,
@@ -375,27 +406,55 @@ class Create(action.Command):
 
     timer = 0
     print('Waiting for instance to be created. It can take a few minutes.')
+    has_tb_backend_id = False
+    backend_id: str | None = None
     while timer < _MAX_WAIT_TIME_IN_SECONDS:
-      timer += _WAIT_TIME_IN_SECONDS
       time.sleep(_WAIT_TIME_IN_SECONDS)
+      timer += _WAIT_TIME_IN_SECONDS
       command = self._build_describe_command(args, extra_args, verbose)
       if verbose:
+        print(f'{timer} seconds have passed of {_MAX_WAIT_TIME_IN_SECONDS}.')
         print(f'Command to run: {command}')
       stdout_describe = self._run_command(command, verbose=verbose)
       json_output = json.loads(stdout_describe)
-      if 'labels' in json_output and 'tb_backend_id' in json_output['labels']:
+      vm_labels = json_output.get('labels', {})
+      if verbose:
+        print(f'JSON labels: \n{vm_labels}')
+      has_tb_backend_id = (
+          vm_labels
+          and (_TB_LAUNCHED_LABEL in vm_labels.keys())
+          and (_TB_BACKEND_LABEL in vm_labels.keys())
+      )
+      if verbose:
+        print(f'{has_tb_backend_id=}')
+      if has_tb_backend_id:
         backend_id = json_output['labels']['tb_backend_id']
-        if verbose:
-          print(f'Backend id: {backend_id}')
-        print(
-            _OUTPUT_MESSAGE.format(
-                LOG_DIRECTORY=args.log_directory,
-                BACKEND_ID=backend_id,
-                REGION='-'.join(args.zone.split('-')[:-1]),
-                VM_NAME=self.vm_name,
-            )
-        )
         break
+
+    # Print out information since creation was successful.
+    if has_tb_backend_id:
+      if verbose:
+        print(f'Backend id: {backend_id}')
+      print(
+          _OUTPUT_MESSAGE.format(
+              LOG_DIRECTORY=args.log_directory,
+              BACKEND_ID=backend_id,
+              REGION='-'.join(args.zone.split('-')[:-1]),
+              VM_NAME=self.vm_name,
+          )
+      )
+    else:  # Setup failed so delete the VM (if created).
+      print(
+          'Timed out waiting for instance to be set up.\n'
+          f'Attempting to delete created VM {self.vm_name} since setup failed.'
+      )
+      # Delete the VM that was created.
+      _ = self._delete_vm(
+          vm_name=self.vm_name,
+          zone=args.zone,
+          verbose=verbose,
+      )
+
     return stdout
 
   def display(
@@ -433,5 +492,7 @@ def startup_script_string(log_directory: str, vm_name: str, zone: str) -> str:
           CONTAINER_NAME='{CONTAINER_NAME}',
           CONTAINER_URL='{CONTAINER_URL}',
           RESULT_JSON='{RESULT_JSON}',
+          TB_LAUNCHED_LABEL=_TB_LAUNCHED_LABEL,
+          TB_BACKEND_LABEL=_TB_BACKEND_LABEL,
       )
   )
