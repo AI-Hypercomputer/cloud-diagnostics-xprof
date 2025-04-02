@@ -173,6 +173,9 @@ class Command(abc.ABC):
   ) -> str:
     """Formats the string with the given replacements.
 
+    Used mostly to format the log directory string using string replacements.
+    Also removes the trailing forward slash (/) on string.
+
     Args:
       original_string: The string to format.
       replacements: The replacements to make in the string. Note order is
@@ -181,6 +184,9 @@ class Command(abc.ABC):
     Returns:
       The formatted string.
     """
+    # Remove trailing forward slash is present.
+    original_string = original_string.rstrip('/')
+
     # Replace the replacements with the original characters.
     for replacement in replacements:
       original_string = original_string.replace(
@@ -200,8 +206,7 @@ class Command(abc.ABC):
     This is used to format the labels as a string that can be passed to the
     gcloud command line tool. By default, this will replace the gs:// prefix
     and / with --slash-- to make it easier to read and copy/paste, though a
-    custom set of replacements can be provided. It will also remove the trailing
-    slash on a label if present if no replacements are provided.
+    custom set of replacements can be provided.
 
     Args:
         labels: The labels to format.
@@ -215,8 +220,6 @@ class Command(abc.ABC):
     # Create one string before using replacements.
     strings = []
     for key, value in labels.items():
-      if replacements is None and value[-1] == '/':
-        value = value[:-1]
       strings.append(f'{key}={value}')
     labels_string = ','.join(strings)
 
