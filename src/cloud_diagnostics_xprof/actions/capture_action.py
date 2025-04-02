@@ -22,7 +22,27 @@ is that this can be used to capture a profile from an instance using the
 
 import argparse
 from collections.abc import Mapping, Sequence
+import datetime
+import socket
 from cloud_diagnostics_xprof.actions import action
+
+_DOWNLOAD_CAPTURE_PROFILE = (
+    'wget https://raw.githubusercontent.com/pytorch/xla/master/scripts/capture_profile.py'
+)
+_PYTORCH_CAPTURE_COMMAND = (
+    'python3 capture_profile.py --service_addr localhost:{port} --duration'
+    ' {duration} --log_dir {log_directory}'
+)
+_JAX_CAPTURE_COMMAND = (
+    'python3 -m jax.collect_profile {port} {duration} --log_dir={log_directory}'
+    ' --no_perfetto_link'
+)
+_UPLOAD_PROFILE_COMMAND = (
+    'gsutil cp $(ls /tmp/tensorboard/{session_id}/plugins/profile/*/*xplane.pb|'
+    ' tail -1)'
+    ' {log_directory}/tensorboard/plugins/profile/session_{session_id}/{host}.xplane.pb'
+)
+_CLOUDTOP_DOMAIN = '.c.googlers.com'
 
 
 class Capture(action.Command):
@@ -81,22 +101,6 @@ class Capture(action.Command):
         default='9012',
         help='The local port to capture a profile from.',
     )
-    # experiment name is optional.
-    capture_parser.add_argument(
-        '--experiment-name',
-        '-e',
-        metavar='EXPERIMENT_NAME',
-        default='experiment',
-        help='The experiment name to capture a profile for.',
-    )
-    # run name is optional.
-    capture_parser.add_argument(
-        '--run-name',
-        '-r',
-        metavar='RUN_NAME',
-        default='run',
-        help='The run name to capture a profile for.',
-    )
     # Duration is optional.
     capture_parser.add_argument(
         '--duration',
@@ -110,8 +114,8 @@ class Capture(action.Command):
         '--framework',
         '-f',
         metavar='FRAMEWORK',
-        choices=['pytorch', 'jax', 'unknown'],
-        default='unknown',
+        choices=['pytorch', 'jax'],
+        required=True,
         help='The framework to capture a profile for.',
     )
     # verbose is optional.
@@ -128,10 +132,7 @@ class Capture(action.Command):
       extra_args: Mapping[str, str] | None = None,
       verbose: bool = False,
   ) -> Sequence[str]:
-
-    command = []
-
-    profile_command = [
+    command = [
         self.GCLOUD_COMMAND,
         'compute',
         'tpus',
@@ -142,14 +143,20 @@ class Capture(action.Command):
         args.zone,
         '--worker=all',
         '--command',
-        f'{args.profile_script}',
+        f'{args.command}',
     ]
-    command.extend(profile_command)
+
+    if self._running_on_cloudtop():
+      command.extend([
+          '--',
+          '-o ProxyCommand corp-ssh-helper %h %p',
+      ])
 
     return command
 
   def _profile_single_host(
       self,
+      session_id: str,
       host: str,
       zone: str,
       args: argparse.Namespace,
@@ -157,93 +164,86 @@ class Capture(action.Command):
       verbose: bool = False,
   ) -> str:
     """Runs the profile script on a single host."""
+    print(f'Starting profile capture on host {host}.')
     stdout_all = ''
 
-    profile_log_location = (
-        f'{args.log_directory}/{args.experiment_name}/{args.run_name}'
-    )
+    profile_log_location = f'{args.log_directory}/tensorboard'
 
-    # Include a host-specific argument for the host name.
+    commands: list[Sequence[str]] = []
     single_host_args = argparse.Namespace(**vars(args))
     single_host_args.host = host
-    # Allow for multiple profile commands to run for unknown framework.
-    profile_commands: dict[str, str] = {}
-
-    # Does PyTorch support if unknown
-    if (args.framework == 'pytorch') or (args.framework == 'unknown'):
-      # Upload the capture profile script to host.
-      try:
-        upload_script_command = (
-            'wget https://raw.githubusercontent.com/pytorch/xla/master/'
-            'scripts/capture_profile.py'
-        )
-
-        # Upload the capture profile script to host.
-        if verbose:
-          print('Uploading profile script to host...')
-        upload_profile_script_command = [
-            self.GCLOUD_COMMAND,
-            'compute',
-            'tpus',
-            'tpu-vm',
-            'ssh',
-            host,
-            '--zone',
-            zone,
-            '--worker=all',
-            '--command',
-            f'{upload_script_command}',
-        ]
-        upload_profile_script_stdout = self._run_command(
-            command=upload_profile_script_command,
-            verbose=verbose,
-        )
-        stdout_all += upload_profile_script_stdout
-      except Exception as e:  # pylint: disable=broad-except
-        print(f'Failed to upload profile script to host {host}: {e}')
-        # Skip the pytorch profile capture if the script fails to upload.
-
+    single_host_args.zone = zone
+    # Framework is PyTorch.
+    if args.framework == 'pytorch':
+      # Command to download the capture profile script.
+      single_host_args.command = _DOWNLOAD_CAPTURE_PROFILE
+      commands.append(
+          self._build_command(single_host_args, extra_args, verbose)
+      )
       # Capture command (assuming script is already uploaded).
-      profile_commands['pytorch'] = (
-          'python3 capture_profile.py'
-          f' --service_addr "localhost:{args.port}"'
-          f' --logdir {profile_log_location}'
-          f' --duration_ms {args.duration}'
+      single_host_args.command = _PYTORCH_CAPTURE_COMMAND.format(
+          port=args.port,
+          duration=args.duration,
+          log_directory=profile_log_location,
       )
-    # Does JAX support if unknown
-    if (args.framework == 'jax') or (args.framework == 'unknown'):
-      profile_commands['jax'] = (
-          'python -m jax.collect_profile'
-          f' {args.port}'
-          f' {args.duration}'
-          f' --log_dir={profile_log_location}'
-          ' --no_perfetto_link'  # No UI link appears.
+      commands.append(
+          self._build_command(
+              args=single_host_args,
+              extra_args=extra_args,
+              verbose=verbose,
+          )
       )
 
-    # Run the profile script for each framework specified.
-    for command_name, command in profile_commands.items():
-      try:
+    # Framework is JAX.
+    if args.framework == 'jax':
+      # Local directory on remote host.
+      local_log_location = f'/tmp/tensorboard/{session_id}'
+      # Capture command, generates traces locally.
+      single_host_args.command = _JAX_CAPTURE_COMMAND.format(
+          port=args.port,
+          duration=args.duration,
+          log_directory=local_log_location,
+      )
+      commands.append(
+          self._build_command(
+              args=single_host_args,
+              extra_args=extra_args,
+              verbose=verbose,
+          )
+      )
+
+      # Upload the profile to gs bucket.
+      single_host_args.command = _UPLOAD_PROFILE_COMMAND.format(
+          log_directory=args.log_directory,
+          session_id=session_id,
+          host=host,
+      )
+      commands.append(
+          self._build_command(
+              args=single_host_args,
+              extra_args=extra_args,
+              verbose=verbose,
+          )
+      )
+
+    # Run all commands.
+    try:
+      for command in commands:
         # Run the profile script on host.
         if verbose:
-          print(f'Running profile capture on {host} host for {command_name}...')
-        # Pass the relevant framework command to profile.
-        single_host_args.profile_script = command
-        single_host_profile_command = self._build_command(
-            args=single_host_args,
-            extra_args=extra_args,
-            verbose=verbose,
-        )
-        stdout_single_host_profile = self._run_command(
-            command=single_host_profile_command,
+          print(f'Running command {command} on {host} host.')
+        stdout = self._run_command(
+            command=command,
             verbose=verbose,
         )
 
-        stdout_all += stdout_single_host_profile
-      except Exception as e:  # pylint: disable=broad-except
-        error_message = (
-            f'Failed to profile host {host} with {command_name} framework: {e}'
-        )
-        print(error_message)
+        stdout_all += stdout
+      print(
+          f'Profile saved to {args.log_directory}/tensorboard and session id'
+          f' is session_{session_id}.'
+      )
+    except Exception as e:  # pylint: disable=broad-except
+      print(f'Failed to profile host {host} with error: {e}')
 
     return stdout_all
 
@@ -255,13 +255,14 @@ class Capture(action.Command):
   ) -> str:
 
     stdout_all_hosts: list[str] = []
-
+    session_id = datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')
     if verbose:
       print(f'Running profile capture on {len(args.hosts)} hosts...')
 
     for host in args.hosts:
       # Run the profile script on a single host.
       single_host_stdout = self._profile_single_host(
+          session_id=session_id,
           host=host,
           zone=args.zone,
           args=args,
@@ -288,4 +289,13 @@ class Capture(action.Command):
       extra_args: Any extra arguments to pass to the command.
       verbose: Whether to print the command and other output.
     """
-    print(display_str)
+    return None
+
+  def _running_on_cloudtop(self):
+    """Check if the current machine is a cloudtop.
+
+    Returns:
+      True if the machine is a cloudtop.
+    """
+    # TODO(b/407869734): Improve this check to be more robust.
+    return _CLOUDTOP_DOMAIN in socket.getfqdn()
