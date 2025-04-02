@@ -186,6 +186,13 @@ class Create(action.Command):
         ),
     )
     create_parser.add_argument(
+        '--machine-type',
+        '-m',
+        metavar='MACHINE_TYPE',
+        help='The machine type to use for the VM.',
+        default='e2-highmem-4',
+    )
+    create_parser.add_argument(
         '--verbose',
         '-v',
         action='store_true',
@@ -242,6 +249,8 @@ class Create(action.Command):
         'instances',
         'create',
         self.vm_name,
+        '--machine-type',
+        args.machine_type,
     ]
     if args.zone:
       create_vm_command.append(f'--zone={args.zone}')
