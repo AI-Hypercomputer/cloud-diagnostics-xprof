@@ -129,7 +129,6 @@ _DEFAULT_EXTRA_ARGS: Mapping[str, str] = {
     '--tags': 'default-allow-ssh',
     '--image-family': 'debian-12',
     '--image-project': 'debian-cloud',
-    '--machine-type': 'e2-highmem-4',
     '--scopes': 'cloud-platform',
 }
 
