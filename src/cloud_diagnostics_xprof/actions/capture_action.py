@@ -25,6 +25,8 @@ from collections.abc import Mapping, Sequence
 import datetime
 import socket
 from cloud_diagnostics_xprof.actions import action
+from cloud_diagnostics_xprof.actions import utils
+
 
 _DOWNLOAD_CAPTURE_PROFILE = (
     'wget https://raw.githubusercontent.com/pytorch/xla/master/scripts/capture_profile.py'
@@ -247,13 +249,20 @@ class Capture(action.Command):
 
     return stdout_all
 
+  def _validate_args(self, args: argparse.Namespace) -> None:
+    """Validates the arguments."""
+    utils.bucket_exists(args.log_directory)
+    for host in args.hosts:
+      utils.host_exists(host, args.zone)
+
   def run(
       self,
       args: argparse.Namespace,
       extra_args: Mapping[str, str] | None = None,
       verbose: bool = False,
   ) -> str:
-
+    """Runs the profile capture command."""
+    self._validate_args(args)
     stdout_all_hosts: list[str] = []
     session_id = datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')
     if verbose:

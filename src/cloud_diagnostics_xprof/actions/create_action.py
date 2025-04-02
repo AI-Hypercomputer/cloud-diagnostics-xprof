@@ -28,6 +28,7 @@ import uuid
 from cloud_diagnostics_xprof.actions import action
 from cloud_diagnostics_xprof.actions import delete_action
 from cloud_diagnostics_xprof.actions import list_action
+from cloud_diagnostics_xprof.actions import utils
 
 
 _WAIT_TIME_IN_SECONDS = 20
@@ -51,7 +52,7 @@ echo \"Setup tensorboard webserver.\"
 virtualenv -p python3 tensorboardvenv
 source tensorboardvenv/bin/activate
 tensorboardvenv/bin/pip3 install tensorflow-cpu
-tensorboardvenv/bin/pip3 install --upgrade 'cloud-tpu-profiler>=2.3.0'
+tensorboardvenv/bin/pip3 install --upgrade 'cloud-tpu-profiler>=2.19.0'
 tensorboardvenv/bin/pip3 install tensorboard_plugin_profile
 tensorboardvenv/bin/pip3 install importlib_resources
 tensorboardvenv/bin/pip3 install etils
@@ -320,6 +321,10 @@ class Create(action.Command):
     delete_command_output = delete_command.run(delete_args, verbose=verbose)
     return delete_command_output
 
+  def _validate_args(self, args: argparse.Namespace) -> None:
+    """Validates the arguments."""
+    utils.bucket_exists(args.log_directory)
+
   def run(
       self,
       args: argparse.Namespace,
@@ -336,6 +341,7 @@ class Create(action.Command):
     Returns:
       The output of the command.
     """
+    self._validate_args(args)
     if args.vm_name:
       self.vm_name = args.vm_name
 
