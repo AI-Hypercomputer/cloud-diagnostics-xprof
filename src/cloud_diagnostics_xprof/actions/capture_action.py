@@ -34,7 +34,7 @@ _DOWNLOAD_CAPTURE_PROFILE = (
 )
 _PYTORCH_CAPTURE_COMMAND = (
     'python3 capture_profile.py --service_addr localhost:{port} --duration'
-    ' {duration} --log_dir {log_directory}'
+    ' {duration} --logdir {log_directory}'
 )
 _JAX_CAPTURE_COMMAND = (
     'python3 -m jax.collect_profile {port} {duration} --log_dir={log_directory}'
@@ -181,13 +181,12 @@ class Capture(action.Command):
     print(f'Starting profile capture on host {host}.')
     stdout_all = ''
 
-    profile_log_location = f'{args.log_directory}/tensorboard'
-
     commands: list[Sequence[str]] = []
     single_host_args = argparse.Namespace(**vars(args))
     single_host_args.host = host
     single_host_args.zone = zone
     single_host_args.use_ssh_proxy = args.use_ssh_proxy
+    local_log_location = f'/tmp/tensorboard/{session_id}'
     # Framework is PyTorch.
     if args.framework == 'pytorch':
       # Command to download the capture profile script.
@@ -199,7 +198,7 @@ class Capture(action.Command):
       single_host_args.command = _PYTORCH_CAPTURE_COMMAND.format(
           port=args.port,
           duration=args.duration,
-          log_directory=profile_log_location,
+          log_directory=local_log_location,
       )
       commands.append(
           self._build_command(
@@ -212,7 +211,6 @@ class Capture(action.Command):
     # Framework is JAX.
     if args.framework == 'jax':
       # Local directory on remote host.
-      local_log_location = f'/tmp/tensorboard/{session_id}'
       # Capture command, generates traces locally.
       single_host_args.command = _JAX_CAPTURE_COMMAND.format(
           port=args.port,
@@ -227,19 +225,19 @@ class Capture(action.Command):
           )
       )
 
-      # Upload the profile to gs bucket.
-      single_host_args.command = _UPLOAD_PROFILE_COMMAND.format(
-          log_directory=args.log_directory,
-          session_id=session_id,
-          host=host,
-      )
-      commands.append(
-          self._build_command(
-              args=single_host_args,
-              extra_args=extra_args,
-              verbose=verbose,
-          )
-      )
+    # Upload the profile to gs bucket.
+    single_host_args.command = _UPLOAD_PROFILE_COMMAND.format(
+        log_directory=args.log_directory,
+        session_id=session_id,
+        host=host,
+    )
+    commands.append(
+        self._build_command(
+            args=single_host_args,
+            extra_args=extra_args,
+            verbose=verbose,
+        )
+    )
 
     # Run all commands.
     try:
