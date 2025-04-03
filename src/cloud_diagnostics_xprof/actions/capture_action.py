@@ -23,7 +23,6 @@ is that this can be used to capture a profile from an instance using the
 import argparse
 from collections.abc import Mapping, Sequence
 import datetime
-import socket
 from cloud_diagnostics_xprof.actions import action
 from cloud_diagnostics_xprof.actions import utils
 
@@ -44,7 +43,10 @@ _UPLOAD_PROFILE_COMMAND = (
     ' tail -1)'
     ' {log_directory}/tensorboard/plugins/profile/session_{session_id}/{host}.xplane.pb'
 )
-_CLOUDTOP_DOMAIN = '.c.googlers.com'
+_XPROFZ_ERROR_MESSAGE = (
+    'No trace event was collected because there were no responses from clients'
+)
+_SSH_CONNECTION_TIMED_OUT_MESSAGE = 'Connection timed out'
 
 
 class Capture(action.Command):
@@ -120,6 +122,14 @@ class Capture(action.Command):
         required=True,
         help='The framework to capture a profile for.',
     )
+    # framework is optional.
+    capture_parser.add_argument(
+        '--use-ssh-proxy',
+        '-u',
+        action='store_true',
+        default=False,
+        help='Use the SSH proxy to connect to the instance.',
+    )
     # verbose is optional.
     capture_parser.add_argument(
         '--verbose',
@@ -148,7 +158,7 @@ class Capture(action.Command):
         f'{args.command}',
     ]
 
-    if self._running_on_cloudtop():
+    if args.use_ssh_proxy:
       command.extend([
           '--',
           '-o ProxyCommand corp-ssh-helper %h %p',
@@ -175,6 +185,7 @@ class Capture(action.Command):
     single_host_args = argparse.Namespace(**vars(args))
     single_host_args.host = host
     single_host_args.zone = zone
+    single_host_args.use_ssh_proxy = args.use_ssh_proxy
     # Framework is PyTorch.
     if args.framework == 'pytorch':
       # Command to download the capture profile script.
@@ -245,7 +256,19 @@ class Capture(action.Command):
           f' is session_{session_id}.'
       )
     except Exception as e:  # pylint: disable=broad-except
-      print(f'Failed to profile host {host} with error: {e}')
+      print(f'Failed to profile host {host}')
+      if _XPROFZ_ERROR_MESSAGE in str(e):
+        print(
+            'This is likely due to the job not being active. Please try again'
+            ' after the job is active and profile server is running.'
+        )
+      elif _SSH_CONNECTION_TIMED_OUT_MESSAGE in str(e):
+        print(
+            'This is likely due to the SSH connection timing out. Please'
+            ' validate the SSH connection to the VM and try again.'
+        )
+      else:
+        print(f'Failed to profile host {host} with error: {e}')
 
     return stdout_all
 
@@ -299,12 +322,3 @@ class Capture(action.Command):
       verbose: Whether to print the command and other output.
     """
     return None
-
-  def _running_on_cloudtop(self):
-    """Check if the current machine is a cloudtop.
-
-    Returns:
-      True if the machine is a cloudtop.
-    """
-    # TODO(b/407869734): Improve this check to be more robust.
-    return _CLOUDTOP_DOMAIN in socket.getfqdn()
