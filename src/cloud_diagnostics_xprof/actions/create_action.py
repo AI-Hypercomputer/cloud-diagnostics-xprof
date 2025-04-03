@@ -22,13 +22,13 @@ that are specific to the the xprof instance.
 import argparse
 from collections.abc import Mapping, Sequence
 import json
+import re
 import time
 import uuid
 
 from cloud_diagnostics_xprof.actions import action
 from cloud_diagnostics_xprof.actions import delete_action
 from cloud_diagnostics_xprof.actions import list_action
-from cloud_diagnostics_xprof.actions import utils
 
 
 _WAIT_TIME_IN_SECONDS = 20
@@ -329,9 +329,38 @@ class Create(action.Command):
     delete_command_output = delete_command.run(delete_args, verbose=verbose)
     return delete_command_output
 
-  def _validate_args(self, args: argparse.Namespace) -> None:
-    """Validates the arguments."""
-    utils.bucket_exists(args.log_directory)
+  def _validate_run_args(
+      self,
+      *,
+      args: argparse.Namespace,
+      verbose: bool = False,
+    ) -> None:
+    """Validates args for the main command and raises an error if invalid.
+
+    Intended to check arguments passed before the command is run.
+    Checks:
+      - Log directory (GCS bucket URL) exists.
+
+    Args:
+      args: The arguments parsed from the command line.
+      verbose: Whether to print the command and other output.
+
+    Raises:
+      ValueError: If the log directory does not exist.
+    """
+    # Use regex to extract just the bucket name from the log directory.
+    gs_bucket_pattern = re.compile(r'^(gs://[^/]+).*')
+    match = gs_bucket_pattern.match(args.log_directory)
+    bucket_url: str | None = match.group(1) if match else None
+    # Check that the specific bucket exists.
+    bucket_exists = self.bucket_exists(
+        bucket_name=bucket_url,
+        verbose=verbose,
+    )
+    if not bucket_exists:
+      raise ValueError(
+          f'Log directory {args.log_directory} does not exist.'
+      )
 
   def run(
       self,
@@ -349,7 +378,9 @@ class Create(action.Command):
     Returns:
       The output of the command.
     """
-    self._validate_args(args)
+    # Will raise an error if args are determined to be invalid.
+    self._validate_run_args(args=args, verbose=verbose)
+
     if args.vm_name:
       self.vm_name = args.vm_name
 

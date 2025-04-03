@@ -16,30 +16,6 @@
 import subprocess
 
 
-def bucket_exists(bucket_name: str) -> None:
-  """Checks if a bucket exists."""
-  if not bucket_name.startswith('gs://'):
-    raise ValueError(f'Bucket name {bucket_name} does not start with gs://.')
-
-  bucket_name = 'gs://'+ bucket_name.split('/')[2]
-
-  try:
-    subprocess.run(
-        [
-            'gcloud',
-            'storage',
-            'buckets',
-            'describe',
-            bucket_name,
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-  except subprocess.CalledProcessError as e:
-    raise ValueError(f'Bucket {bucket_name} does not exist.') from e
-
-
 def host_exists(host_name: str, zone: str) -> None:
   """Checks if a host exists."""
   try:

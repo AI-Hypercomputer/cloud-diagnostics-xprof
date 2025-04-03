@@ -23,6 +23,8 @@ is that this can be used to capture a profile from an instance using the
 import argparse
 from collections.abc import Mapping, Sequence
 import datetime
+import re
+
 from cloud_diagnostics_xprof.actions import action
 from cloud_diagnostics_xprof.actions import utils
 
@@ -272,9 +274,38 @@ class Capture(action.Command):
 
     return stdout_all
 
-  def _validate_args(self, args: argparse.Namespace) -> None:
-    """Validates the arguments."""
-    utils.bucket_exists(args.log_directory)
+  def _validate_run_args(
+      self,
+      *,
+      args: argparse.Namespace,
+      verbose: bool = False,
+  ) -> None:
+    """Validates args for the main command and raises an error if invalid.
+
+    Intended to check arguments passed before the command is run.
+    Checks:
+      - Log directory (GCS bucket URL) exists.
+
+    Args:
+      args: The arguments parsed from the command line.
+      verbose: Whether to print the command and other output.
+
+    Raises:
+      ValueError: If the log directory does not exist.
+    """
+    # Use regex to extract just the bucket name from the log directory.
+    gs_bucket_pattern = re.compile(r'^(gs://[^/]+).*')
+    match = gs_bucket_pattern.match(args.log_directory)
+    bucket_url: str | None = match.group(1) if match else None
+    # Check that the specific bucket exists.
+    bucket_exists = self.bucket_exists(
+        bucket_name=bucket_url,
+        verbose=verbose,
+    )
+    if not bucket_exists:
+      raise ValueError(f'Log directory {args.log_directory} does not exist.')
+
+    # Check that the hosts exist.
     for host in args.hosts:
       utils.host_exists(host, args.zone)
 
@@ -285,7 +316,10 @@ class Capture(action.Command):
       verbose: bool = False,
   ) -> str:
     """Runs the profile capture command."""
-    self._validate_args(args)
+    self._validate_run_args(
+        args=args,
+        verbose=verbose,
+    )
     stdout_all_hosts: list[str] = []
     session_id = datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')
     if verbose:

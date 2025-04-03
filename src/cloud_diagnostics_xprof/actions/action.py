@@ -324,3 +324,46 @@ class Command(abc.ABC):
       extra_args: Any extra arguments to pass to the command.
       verbose: Whether to print the command and other output.
     """
+
+  def bucket_exists(
+      self,
+      *,
+      bucket_name: str | None,
+      verbose: bool = False,
+  ) -> bool:
+    """Checks if the bucket exists.
+
+    Args:
+      bucket_name: Name of bucket to check. Assumes bucket url (gs://my-bucket)
+      verbose: Whether to print the command and other output.
+
+    Returns:
+      True if the bucket exists, False otherwise.
+    """
+    if bucket_name is None:
+      if verbose:
+        print('Bucket name not provided.')
+      return False
+    describe_bucket_command = [
+        self.GCLOUD_COMMAND,
+        'storage',
+        'buckets',
+        'describe',
+        bucket_name,
+    ]
+    # Catch errors from the describe bucket command and only return False
+    try:
+      if verbose:
+        print(
+            f'Checking if bucket {bucket_name} exists with command:'
+            f' {describe_bucket_command}'
+        )
+      _ = self._run_command(describe_bucket_command, verbose=verbose)
+      if verbose:
+        print(f'Bucket {bucket_name} exists.')
+      return True
+    except ValueError as e:
+      if verbose:
+        print(f'Bucket {bucket_name} does not exist.')
+        print(f'Error caught running command to check bucket exists: {e}')
+      return False
