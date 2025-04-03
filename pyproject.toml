@@ -14,7 +14,7 @@
 
 [project]
 name = "cloud-diagnostics-xprof"
-version = "0.0.8"
+version = "0.0.9"
 authors = [
   { name="Hypercompute Diagon", email="hypercompute-diagon@google.com" },
 ]
@@ -44,4 +44,4 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project.scripts]
-xprof = "xprofiler.src.cloud_diagnostics_xprof.xprofiler:main" # command_name = package.module:function_name
+xprofiler = "cloud_diagnostics_xprof.xprof:main"

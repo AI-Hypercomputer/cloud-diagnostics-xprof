@@ -21,9 +21,7 @@ centered around a log directory as the 'primary key'.
 """
 
 import argparse
-import collections
-from collections.abc import Mapping, Sequence
-import itertools
+from collections.abc import Mapping
 
 from cloud_diagnostics_xprof.actions import action
 from cloud_diagnostics_xprof.actions import capture_action
