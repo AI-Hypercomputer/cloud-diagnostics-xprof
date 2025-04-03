@@ -23,6 +23,7 @@ import abc
 import argparse
 from collections.abc import Mapping, Sequence
 import dataclasses
+import re
 import subprocess
 import tabulate
 
@@ -325,7 +326,78 @@ class Command(abc.ABC):
       verbose: Whether to print the command and other output.
     """
 
-  def bucket_exists(
+  def _get_bucket_parts(
+      self,
+      gcs_bucket_url: str,
+  ) -> tuple[str, str | None] | None:
+    """Returns the bucket name and path from a GCS bucket URL.
+
+    Args:
+      gcs_bucket_url: The GCS bucket URL to parse.
+
+    Returns:
+      A tuple of the bucket name (gs://my-bucket) and path part (dir0/dir1/...).
+      If the bucket URL format is invalid, returns None. If given just the
+      bucket name, returns the bucket name and None.
+    """
+    # Use regex to extract just the bucket name from the log directory.
+    gcs_bucket_pattern = (
+        r'^gs://(?P<bucket>[^/]+)(?P<path_part>/(?:[^/\n\r]+/?)*)?$'
+    )
+    match = re.match(
+        pattern=gcs_bucket_pattern,
+        string=gcs_bucket_url,
+    )
+    if match:
+      bucket_url: str = f'gs://{match.group("bucket")}'
+      path_part: str | None = match.group('path_part')
+      # Consider a trailing slash as no path part.
+      if path_part == '/':
+        path_part = None
+      return (bucket_url, path_part)
+    else:
+      return None
+
+  def _is_valid_bucket(
+      self,
+      *,
+      bucket_name: str,
+      verbose: bool,
+  ) -> bool:
+    """Checks if the bucket exists and the path was part of full GCS bucket URL.
+
+    Args:
+      bucket_name: Name of bucket to check. Assumes bucket url (gs://my-bucket)
+      verbose: Whether to print the command and other output.
+
+    Returns:
+      True if the bucket exists and the path was part of GCS bucket URL, False
+      otherwise.
+    """
+    bucket_name_and_path = self._get_bucket_parts(
+        gcs_bucket_url=bucket_name,
+    )
+    # If can't get the bucket parts, then something is wrong with the format.
+    if bucket_name_and_path is None:
+      if verbose:
+        print(f'Bucket URL {bucket_name} is not valid. Check string format.')
+      return False
+    else:
+      bucket_url, path_part = bucket_name_and_path
+
+    # Check that the path part exists.
+    if path_part is None:
+      if verbose:
+        print(f'Path part from bucket URL {bucket_name} does not exist.')
+      return False
+
+    # Check for bucket existence (ignores path part).
+    return self._bucket_exists(
+        bucket_name=bucket_url,
+        verbose=verbose,
+    )
+
+  def _bucket_exists(
       self,
       *,
       bucket_name: str | None,
@@ -365,5 +437,32 @@ class Command(abc.ABC):
     except ValueError as e:
       if verbose:
         print(f'Bucket {bucket_name} does not exist.')
+        print(f'Error caught running command to check bucket exists: {e}')
+      return False
+
+  def _host_exists(
+      self,
+      *,
+      host_name: str,
+      zone: str,
+      verbose: bool = False,
+  ) -> bool:
+    """Checks if a host exists."""
+    try:
+      host_describe_command = [
+          self.GCLOUD_COMMAND,
+          'compute',
+          'tpus',
+          'tpu-vm',
+          'describe',
+          host_name,
+          '--zone',
+          zone,
+      ]
+      _ = self._run_command(host_describe_command, verbose=verbose)
+      return True
+    except ValueError as e:
+      if verbose:
+        print(f'Host {host_name} does not exist.')
         print(f'Error caught running command to check bucket exists: {e}')
       return False

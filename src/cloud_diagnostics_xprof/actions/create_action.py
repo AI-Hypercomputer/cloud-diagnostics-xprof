@@ -340,6 +340,7 @@ class Create(action.Command):
     Intended to check arguments passed before the command is run.
     Checks:
       - Log directory (GCS bucket URL) exists.
+      - Log directory (GCS bucket URL) has a path part.
 
     Args:
       args: The arguments parsed from the command line.
@@ -348,16 +349,10 @@ class Create(action.Command):
     Raises:
       ValueError: If the log directory does not exist.
     """
-    # Use regex to extract just the bucket name from the log directory.
-    gs_bucket_pattern = re.compile(r'^(gs://[^/]+).*')
-    match = gs_bucket_pattern.match(args.log_directory)
-    bucket_url: str | None = match.group(1) if match else None
-    # Check that the specific bucket exists.
-    bucket_exists = self.bucket_exists(
-        bucket_name=bucket_url,
+    if not self._is_valid_bucket(
+        bucket_name=args.log_directory,
         verbose=verbose,
-    )
-    if not bucket_exists:
+    ):
       raise ValueError(
           f'Log directory {args.log_directory} does not exist.'
       )

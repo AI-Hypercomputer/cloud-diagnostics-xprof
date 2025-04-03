@@ -12,27 +12,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Utils for cloud diagnostics xprof."""
-import subprocess
-
-
-def host_exists(host_name: str, zone: str) -> None:
-  """Checks if a host exists."""
-  try:
-    subprocess.run(
-        [
-            'gcloud',
-            'compute',
-            'tpus',
-            'tpu-vm',
-            'describe',
-            host_name,
-            '--zone',
-            zone,
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-  except subprocess.CalledProcessError as e:
-    raise ValueError(f'Host {host_name} does not exist.') from e
