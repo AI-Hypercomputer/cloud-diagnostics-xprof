@@ -121,34 +121,6 @@ available subcommands. Also can be called with `xprofiler -h`.
 > Note that each subcommand has a `--help` flag that can give information about
 > that specific subcommand. For example: `xprofiler list --help`
 
-#### `xprofiler --abbrev ...`
-
-When invoking a subcommand, typically there is output related to VM instances
-involved with the subcommand, usually as a detailed table.
-
-In some cases, a user may only want the relevant information (for example a log
-directory GCS path or VM name instance). This can be particularly useful in
-scripting with `xprofiler` by chaining with other commands.
-
-To assist with this, the `--abbrev` (or equivalent `-a`) flag will simply print
-the relevant item (log directory path or VM instance name).
-
-For example, calling `xprofiler list` might give the following output:
-
-```
-LOG_PATH                                   NAME                                            ZONE
-gs://example-bucket/my-other-profile-data  xprof-8187640b-e612-4c47-b4df-59a7fc86b253  us-central1-a
-gs://example-bucket/my-profile-data        xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  us-central1-a
-```
-
-But calling with `xprofiler --abbrev list` will instead print out an abbreviated
-form of the above output where each item is displayed on a new line:
-
-```
-xprof-8187640b-e612-4c47-b4df-59a7fc86b253
-xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef
-```
-
 ### Subcommand: `xprofiler create`
 
 This command is used to create a new VM instance for TensorBoard to run with a
@@ -169,15 +141,11 @@ At the successful completion of this command, the information regarding the
 newly created VM instances is printed out like the example below:
 
 ```
-LOG_PATH                            NAME                                            ZONE
-gs://example-bucket/my-profile-data xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  us-central1-a
-```
+Waiting for instance to be created. It can take a few minutes.
 
-If the [xprofiler abbreviation flag](#xprofiler-abbrev-) is used, then an
-abbreviated output is given like so:
-
-```
-xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef
+Instance for gs://example-bucket/my-profile-data has been created.
+You can access it at https://42rc2772e3vg2276-dot-us-central1.notebooks.googleusercontent.com
+Instance is hosted at xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef VM.
 ```
 
 #### `xprofiler create --help`
@@ -224,17 +192,11 @@ At the successful completion of this command, the information of matching VM
 instances is printed out like the example below:
 
 ```
-LOG_PATH                                   NAME                                            ZONE
-gs://example-bucket/my-other-profile-data  xprof-8187640b-e612-4c47-b4df-59a7fc86b253  us-central1-a
-gs://example-bucket/my-profile-data        xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  us-central1-a
-```
+Log_Directory                               URL                                                                        Name
+-----------------------------------------   ------------------------------------------------------------------------   ----------------------------------------------
+gs://example-bucket/my-other-profile-data   https://78700cq71a7f967e-dot-us-central1.notebooks.googleusercontent.com   xprof-8187640b-e612-4c47-b4df-59a7fc86b253
+gs://example-bucket/my-profile-data         https://7q639a14v4278d50-dot-us-central1.notebooks.googleusercontent.com   xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef
 
-If the [xprofiler abbreviation flag](#xprofiler-abbrev-) is used, then an
-abbreviated output is given like so:
-
-```
-xprof-8187640b-e612-4c47-b4df-59a7fc86b253
-xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef
 ```
 
 #### `xprofiler list --help`
@@ -301,8 +263,8 @@ Found 2 VM(s) to delete.
 
 Log_Directory                              URL                                                                       Name
 -----------------------------------------  ------------------------------------------------------------------------  ----------------------------------------------
-gs://example-bucket/my-data               https://78700cq71a7f967e-dot-us-central1.notebooks.googleusercontent.com  xprof-8187640b-e612-4c47-b4df-59a7fc86b253
-gs://example-bucket/my-data/sub-directory https://7q639a14v4278d50-dot-us-central1.notebooks.googleusercontent.com  xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef
+gs://example-bucket/my-data                https://78700cq71a7f967e-dot-us-central1.notebooks.googleusercontent.com  xprof-8187640b-e612-4c47-b4df-59a7fc86b253
+gs://example-bucket/my-data/sub-directory  https://7q639a14v4278d50-dot-us-central1.notebooks.googleusercontent.com  xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef
 
 Do you want to continue to delete the VM `xprof-8187640b-e612-4c47-b4df-59a7fc86b253`?
 Enter y/n: y
