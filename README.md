@@ -275,3 +275,101 @@ any of these paths:
 ```bash
 xprofiler list -l $GS_PATH_0 $GS_PATH_1 $GS_PATH_2
 ```
+
+### Subcommand: `xprofiler delete`
+
+This command is used to delete VM instances, focused on those created by the
+`xprofiler` tool.
+
+Usage details:
+
+```
+xprofiler list
+  [--help]
+  [--log-directory GS_PATH [GS_PATH ...]]
+  [--vm-name VM_NAME [VM_NAME ...]]
+  [--zone ZONE_NAME]
+  [--verbose]
+```
+
+During execution of the delete command, it will prompt the user to confirm each
+VM to be deleted. (Note the VMs _will not_ be deleted until after confirming or
+rejecting deletion for each VM.) Output looks similar to the example below:
+
+```
+Found 2 VM(s) to delete.
+
+Log_Directory                              URL                                                                       Name
+-----------------------------------------  ------------------------------------------------------------------------  ----------------------------------------------
+gs://example-bucket/my-data               https://78700cq71a7f967e-dot-us-central1.notebooks.googleusercontent.com  xprof-8187640b-e612-4c47-b4df-59a7fc86b253
+gs://example-bucket/my-data/sub-directory https://7q639a14v4278d50-dot-us-central1.notebooks.googleusercontent.com  xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef
+
+Do you want to continue to delete the VM `xprof-8187640b-e612-4c47-b4df-59a7fc86b253`?
+Enter y/n: y
+
+Do you want to continue to delete the VM `xprof-8187640b-e612-4c47-b4df-59a7fc86b253`?
+Enter y/n: y
+
+Do you want to continue to delete the VM `xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef`?
+Enter y/n: n
+Will NOT delete VM `xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef`
+```
+
+#### `xprofiler delete --help`
+
+This provides the basic usage guide for the `xprofiler delete` subcommand.
+
+##### Providing Zone
+
+`xprofiler delete -z $ZONE`
+
+Providing the zone is required since otherwise the command can take a
+while to search for all relevant VM instances that are to be deleted.
+
+##### Providing GCS Path (Profile Log Directory)
+
+Since `xprofiler delete` is meant to delete VM instances created with
+`xprofiler`, it is likely the VM instance of interest is associated with a
+profile log directory.
+
+To filter for a specific VM instance with an associated log directory, simply
+use the command like so:
+
+```bash
+xprofiler delete -z $ZONE -l $GS_PATH
+```
+
+You can even use multiple log directory paths to find any VMs associated with
+any of these paths:
+
+```bash
+xprofiler delete -z $ZONE -l $GS_PATH_0 $GS_PATH_1 $GS_PATH_2
+```
+
+> NOTE: The [log directory](#providing-gcs-path-profile-log-directory-2) and/or
+> [VM name](#providing-vm-instance-names) must be specified.
+
+##### Providing VM Instance Names
+
+Thought the primary method of deletion will likely center around VM instances
+created with `xprofiler`, it is sometimes convenient to delete VM instances by
+their name instead of an associated log directory.
+
+```bash
+xprofiler delete -z $ZONE --vm-name $VM_NAME $VM_NAME_1
+```
+
+This can also take in multiple VM instances to be deleted:
+
+```bash
+xprofiler delete -z $ZONE --vm-name $VM_NAME_0 $VM_NAME_1 $VM_NAME_2
+```
+
+Finally, this option can also be used with specifying log directories:
+
+```bash
+xprofiler delete -z $ZONE -l $GS_PATH --vm-name $VM_NAME_0 $VM_NAME_1 $VM_NAME_2
+```
+
+> NOTE: The [log directory](#providing-gcs-path-profile-log-directory-2) and/or
+> [VM name](#providing-vm-instance-names) must be specified.
