@@ -89,6 +89,14 @@ class Connect(action.Command):
         action='store_true',
         help='Disconnect from the instance (assuming connection was made).',
     )
+    # proxy is optional.
+    connect_parser.add_argument(
+        '--use-ssh-proxy',
+        '-u',
+        action='store_true',
+        default=False,
+        help='Use the SSH proxy to connect to the instance.',
+    )
     connect_parser.add_argument(
         '--verbose',
         '-v',
@@ -237,6 +245,12 @@ class Connect(action.Command):
       connect_command.extend(
           [f'{arg}={value}' for arg, value in extra_args.items()]
       )
+
+    if args.use_ssh_proxy:
+      connect_command.extend([
+          '--',
+          '-o ProxyCommand corp-ssh-helper %h %p',
+      ])
 
     return connect_command
 

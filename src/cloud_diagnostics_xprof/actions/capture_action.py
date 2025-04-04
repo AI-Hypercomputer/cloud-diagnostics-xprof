@@ -122,7 +122,7 @@ class Capture(action.Command):
         required=True,
         help='The framework to capture a profile for.',
     )
-    # framework is optional.
+    # proxy is optional.
     capture_parser.add_argument(
         '--use-ssh-proxy',
         '-u',
