@@ -189,7 +189,7 @@ class Create(action.Command):
         '-m',
         metavar='MACHINE_TYPE',
         help='The machine type to use for the VM.',
-        default='e2-highmem-4',
+        default='c4-highmem-8',
     )
     create_parser.add_argument(
         '--verbose',
