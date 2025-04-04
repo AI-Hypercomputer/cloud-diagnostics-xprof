@@ -127,6 +127,46 @@ class Delete(action.Command):
 
     return vm_names
 
+  def _display_vm_names(
+      self,
+      vm_names: Sequence[str],
+      zone: str,
+      verbose: bool = False,
+  ) -> None:
+    """Displays the VM name(s) to the user.
+
+    Args:
+      vm_names: The VM name(s) to display.
+      verbose: Whether to print verbose output.
+    """
+    if verbose:
+      print(f'Calling list subcommand to get info on VM(s): {vm_names}')
+
+    list_command = list_action.List()
+
+    # Build filter args to get the VM(s) to display.
+    filter_args = []
+    for vm_name in vm_names:
+      filter_args.append(f'name={vm_name}')
+    list_args = argparse.Namespace(
+        log_directory=None,
+        zone=zone,
+        filter=filter_args,
+        verbose=verbose,
+    )
+
+    # Each VM name is on a separate line after the header.
+    command_output = list_command.run(
+        args=list_args,
+        verbose=verbose,
+    )
+
+    list_command.display(
+        display_str=command_output,
+        args=list_args,
+        verbose=verbose,
+    )
+
   def _confirm_vm_deletions(
       self,
       vm_candidates: Sequence[str],
@@ -205,7 +245,8 @@ class Delete(action.Command):
 
       vm_candidates.extend(vm_names_from_log_directory)
 
-    print(f'Found {len(vm_candidates)} VM(s) to delete.')
+    print(f'Found {len(vm_candidates)} VM(s) to delete.\n')
+    self._display_vm_names(vm_candidates, args.zone, verbose)
 
     vm_names = self._confirm_vm_deletions(vm_candidates)
 
