@@ -127,6 +127,37 @@ class Delete(action.Command):
 
     return vm_names
 
+  def _confirm_vm_deletions(
+      self,
+      vm_candidates: Sequence[str],
+  ) -> Sequence[str]:
+    """Confirms with user that they want to delete the VM(s).
+
+    Args:
+      vm_candidates: The VM name(s) to delete.
+
+    Returns:
+      The VM name(s) to delete.
+    """
+    # Confirm with user that they want to delete each VM(s).
+    message_to_user = (
+        '\nDo you want to continue to delete the VM `{VM_NAME}`?\n'
+        'Enter y/n: '
+    )
+
+    # Don't proceed if user does not say 'Y'/'y'.
+    vm_names: list[str] = []
+    for vm_name in vm_candidates:
+      user_input = input(message_to_user.format(VM_NAME=vm_name)).lower()
+      if user_input != 'y':
+        print(f'Will NOT delete VM `{vm_name}`')
+      else:
+        print(f'Will delete VM `{vm_name}`')
+        vm_names.append(vm_name)
+    print()  # Add a new line for clarity.
+
+    return vm_names
+
   def _build_command(
       self,
       args: argparse.Namespace,
@@ -152,9 +183,16 @@ class Delete(action.Command):
           'Either --vm-name or --log-directory must be specified.'
       )
 
-    vm_names = []
+    # List of VM names to (potentially) delete.
+    vm_candidates = []
 
-    # If log directory is specified, use that to get the VM name(s)
+    # Include the VM name(s) from the command line if specified.
+    if args.vm_name:
+      if verbose:
+        print(f'VM name(s) from command line: {args.vm_name}')
+      vm_candidates.extend(args.vm_name)
+
+    # If log directory is specified, use that to get the VM name(s).
     if args.log_directory:
       vm_names_from_log_directory = self._get_vms_from_log_directory(
           log_directories=args.log_directory,
@@ -165,13 +203,11 @@ class Delete(action.Command):
       if verbose:
         print(f'VM name(s) from log directory: {vm_names_from_log_directory}')
 
-      vm_names.extend(vm_names_from_log_directory)
+      vm_candidates.extend(vm_names_from_log_directory)
 
-    # Include the VM name(s) from the command line if specified.
-    if args.vm_name:
-      if verbose:
-        print(f'VM name from command line: {args.vm_name}')
-      vm_names.extend(args.vm_name)
+    print(f'Found {len(vm_candidates)} VM(s) to delete.')
+
+    vm_names = self._confirm_vm_deletions(vm_candidates)
 
     if verbose:
       print(f'Will delete VM(s) w/ name: {vm_names}')
