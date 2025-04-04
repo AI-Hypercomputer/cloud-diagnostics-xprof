@@ -58,6 +58,7 @@ class Connect(action.Command):
     connect_parser.add_argument(
         '--zone',
         '-z',
+        required=True,
         metavar='ZONE_NAME',
         help='The GCP zone to connect to the instance in.',
     )
