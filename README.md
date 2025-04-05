@@ -61,15 +61,14 @@ than 5 minutes) if you want to connect to the VM's TensorBoard.
 
 ### List VM Instances
 
-To list the TensorBoard instances created by `xprofiler`, you can simply run
-`xprofiler list`. However, it's recommended to specify the zone (though not
-required).
+To list the TensorBoard instances created by `xprofiler`, the following:
 
 ```bash
 ZONE=us-central1-a
 
 xprofiler list -z $ZONE
 ```
+> NOTE: The `--zone` flag is required.
 
 This will output something like the following if there are instances matching
 the list criteria:
@@ -163,8 +162,7 @@ will also have TensorBoard installed and setup ready for use.
 > instance to fully be ready (installing dependencies, launching TensorBoard,
 > etc.)
 
-It is recommended to also provide a zone with `--zone` or `-z` but it is
-optional.
+It is required to provide a zone with `--zone` or `-z`.
 
 By default, the VM instance's name will be uniquely created prepended with
 `xprof-`. However, this can be specified with the `--vm-name` or `-n` flag
@@ -215,8 +213,8 @@ options.
 
 `xprofiler list -z $ZONE`
 
-Providing the zone is highly recommended since otherwise the command can take a
-while to search for all relevant VM instances.
+Providing the zone is required and will search for all relevant VM instances in
+that zone.
 
 ##### Providing GCS Path (Profile Log Directory)
 
