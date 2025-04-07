@@ -137,8 +137,14 @@ class Delete(action.Command):
 
     Args:
       vm_names: The VM name(s) to display.
+      zone: The GCP zone to delete the instance in.
       verbose: Whether to print verbose output.
     """
+    if not vm_names:
+      if verbose:
+        print('Empty VM names list so nothing to display.')
+      return
+
     if verbose:
       print(f'Calling list subcommand to get info on VM(s): {vm_names}')
 
@@ -248,7 +254,13 @@ class Delete(action.Command):
     print(f'Found {len(vm_candidates)} VM(s) to delete.\n')
     self._display_vm_names(vm_candidates, args.zone, verbose)
 
+    if not vm_candidates:
+      raise ValueError('No VM(s) to delete.')
+
     vm_names = self._confirm_vm_deletions(vm_candidates)
+
+    if not vm_names:
+      raise ValueError('No VM(s) to delete.')
 
     if verbose:
       print(f'Will delete VM(s) w/ name: {vm_names}')
@@ -267,9 +279,6 @@ class Delete(action.Command):
       delete_vm_command.extend(
           [f'{arg}={value}' for arg, value in extra_args.items()]
       )
-
-    if not vm_names:
-      raise ValueError('No VM(s) to delete.')
 
     delete_vm_command.extend(vm_names)
 
