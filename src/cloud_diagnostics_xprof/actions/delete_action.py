@@ -258,15 +258,24 @@ class Delete(action.Command):
 
       vm_candidates.extend(vm_names_from_log_directory)
 
-    print(f'Found {len(vm_candidates)} VM(s) to delete.\n')
-    self._display_vm_names(vm_candidates, args.zone, verbose)
-
     if not vm_candidates:
       raise ValueError('No VM(s) to delete.')
 
     # Skip confirmation if user specified --quiet.
+    # Only need to display VM(s) if the user is confiming deletion or verbose.
+    if verbose or not args.quiet:
+      print(f'Found {len(vm_candidates)} VM(s) to delete.\n')
+      self._display_vm_names(
+          vm_names=vm_candidates,
+          zone=args.zone,
+          verbose=verbose,
+      )
+
+    # Skip confirmation if user specified --quiet.
     if args.quiet:
       vm_names = vm_candidates
+      if verbose:
+        print(f'Skipping confirmation for VM(s): {vm_names}')
     else:
       vm_names = self._confirm_vm_deletions(vm_candidates)
 
