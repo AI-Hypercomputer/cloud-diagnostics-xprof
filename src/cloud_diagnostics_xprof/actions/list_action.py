@@ -73,7 +73,11 @@ class List(action.Command):
         '-f',
         metavar='FILTER_NAME',
         nargs='+',
-        help='Filter the list of instances by property.',
+        help=(
+            '[EXPERIMENTAL] Filter the list of instances by property. '
+            'This is an experimental feature and may change in the future'
+            ' or may be removed completely.'
+        ),
     )
     list_parser.add_argument(
         '--verbose',
@@ -85,21 +89,70 @@ class List(action.Command):
   def _format_filter_string(
       self,
       filter_values: Mapping[str, Sequence[str]],
+      match_operator: str = '~',
+      join_operator: str = 'AND',
+      verbose: bool = False,
   ) -> str:
     """Formats the filter string for gcloud as single string.
 
     Args:
       filter_values: The filter values to format.
+      match_operator: The operator used for matching (only ~, =, !=).
+      join_operator: The opeartor used to join the filter strings (AND / OR).
+      verbose: Whether to print the command and other output.
 
     Returns:
       The formatted filter string.
     """
+    if not filter_values:
+      if verbose:
+        print('No filter values provided.')
+      return ''
+
+    # Check valid join operators.
+    if join_operator.upper() not in ['AND', 'OR']:
+      raise ValueError(
+          f'Invalid join operator: {join_operator}. Must be one of AND, OR.'
+      )
+
+    # Check valid match operators. For now, only support ~, =, !=.
+    is_negation = False
+    match match_operator:
+      case '~':
+        key_joiner_str = ':'
+      case '=':
+        key_joiner_str = '='
+      case '!=':
+        key_joiner_str = '='
+        is_negation = True
+      case _:
+        raise ValueError(
+            f'Invalid match operator: {match_operator}. Must be one of ~, =, !='
+        )
+
+    if verbose:
+      print(f'Creating filter striing for {filter_values}')
+      print(f'Given match operator: {match_operator}')
+      print(f'Given join operator: {join_operator}')
+
+    # Since can have multiple values for each key, we need to OR–join them.
+    negation_str = '-' if is_negation else ''
     all_filter_strings = [
-        ' OR '.join(f'{key}~"{value}"' for value in list_of_values)
+        (
+            f'{negation_str}{key}{key_joiner_str}({",".join(list_of_values)})'
+        )
         for key, list_of_values in filter_values.items()
     ]
+    if verbose:
+      print(f'All filter strings: {all_filter_strings}')
     # Must contain these properties across all key values
-    filter_string = '(' + ') AND ('.join(all_filter_strings) + ')'
+    filter_string = (
+        '(' +
+        f') {join_operator} ('.join(all_filter_strings) +
+        ')'
+    )
+    if verbose:
+      print(f'Final filter string: {filter_string}')
     return filter_string
 
   def _build_command(
@@ -130,30 +183,26 @@ class List(action.Command):
     ]
     # Note we still filter by zone since this is **significantly** faster than
     # filtering with the `--filter` in gcloud
-    if args.zone:
-      list_vms_command.append(f'--zones={args.zone}')
+    list_vms_command.append(f'--zones={args.zone}')
 
     list_vms_command.append(
         '--format=table(labels.log_directory, labels.tb_backend_id, name)'
     )
 
-    # Process filter flag into filter_values
-    filter_values: Mapping[str, list[str]] = {}
-    if args.filter:
-      if verbose:
-        print(f'Filters from parser: {args.filter}')
-      for filter_name in args.filter:
-        key, value = filter_name.split('=', 1)
-        if key not in filter_values:
-          filter_values |= {f'{key}': []}
-        filter_values[key].append(value)
-    else:  # Default to filtering by VM name
-      filter_values |= dict(
-          name=[
-              self.VM_BASE_NAME,
-          ],
-      )
+    # Always filter by VM base name.
+    base_filter_values: Mapping[str, list[str]] = dict(
+        name=[
+            self.VM_BASE_NAME,
+        ],
+    )
+    # Allow this full filter string to be built up.
+    full_filter_string = self._format_filter_string(
+        base_filter_values,
+        match_operator='~',
+        join_operator='AND',
+    )
 
+    main_filter_values: Mapping[str, list[str]] = {}
     # If log directory is specified, we will also filter in addition to others.
     if args.log_directory:
       log_directory_strings = [
@@ -163,12 +212,35 @@ class List(action.Command):
           )
           for log_directory in args.log_directory
       ]
-      filter_values |= {
+      main_filter_values |= {
           'labels.log_directory': log_directory_strings,
       }
+    # True if any matches exactly.
+    main_filter_string = self._format_filter_string(
+        main_filter_values,
+        match_operator='=',
+        join_operator='OR',
+    )
 
-    filter_string = self._format_filter_string(filter_values)
-    list_vms_command.append(f'--filter={filter_string}')
+    # Allow this full filter string to be built up.
+    if main_filter_string:
+      full_filter_string += f' AND {main_filter_string}'
+
+    # Allow user provided filters as additional filters.
+    if args.filter:
+      if verbose:
+        print(f'Filters from parser: {args.filter}')
+
+      # Simply use the user provided filter strings to define match criteria.
+      filter_string = ' AND '.join(args.filter)
+
+      # AND the main filter string with the filter string.
+      # Paranetheses are needed if the filter string from user uses OR.
+      full_filter_string += f' AND ({filter_string})'
+
+    if verbose:
+      print(f'Full filter string: {full_filter_string}')
+    list_vms_command.append(f'--filter={full_filter_string}')
 
     # Extensions of any other arguments to the main command.
     if extra_args:

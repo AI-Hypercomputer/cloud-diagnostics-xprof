@@ -151,9 +151,10 @@ class Delete(action.Command):
     list_command = list_action.List()
 
     # Build filter args to get the VM(s) to display.
-    filter_args = []
-    for vm_name in vm_names:
-      filter_args.append(f'name={vm_name}')
+    # True if any exactly matches a VM name (based on gcloud's filter syntax).
+    filter_args = [
+        f'name=({",".join(vm_names)})'
+    ]
     list_args = argparse.Namespace(
         log_directory=None,
         zone=zone,
