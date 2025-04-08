@@ -36,7 +36,9 @@ _MAX_WAIT_TIME_IN_SECONDS = 300
 
 _OUTPUT_MESSAGE = r"""
 Instance for {LOG_DIRECTORY} has been created.
-You can access it at https://{BACKEND_ID}-dot-{REGION}.notebooks.googleusercontent.com
+You can access it via the following,
+1. xprofiler connect -z {ZONE} -l {LOG_DIRECTORY} -m ssh
+2. [Experimental (supports small captures, < 200 mb)] https://{BACKEND_ID}-dot-{REGION}.notebooks.googleusercontent.com
 Instance is hosted at {VM_NAME} VM.
 """
 
@@ -52,7 +54,7 @@ echo \"Setup tensorboard webserver.\"
 virtualenv -p python3 tensorboardvenv
 source tensorboardvenv/bin/activate
 tensorboardvenv/bin/pip3 install tensorflow-cpu
-tensorboardvenv/bin/pip3 install --upgrade 'cloud-tpu-profiler>=2.19.0'
+tensorboardvenv/bin/pip3 install --upgrade 'cloud-tpu-profiler'
 tensorboardvenv/bin/pip3 install tensorboard_plugin_profile
 tensorboardvenv/bin/pip3 install importlib_resources
 tensorboardvenv/bin/pip3 install etils
@@ -481,6 +483,7 @@ class Create(action.Command):
               BACKEND_ID=backend_id,
               REGION='-'.join(args.zone.split('-')[:-1]),
               VM_NAME=self.vm_name,
+              ZONE=args.zone,
           )
       )
     else:  # Setup failed so delete the VM (if created).

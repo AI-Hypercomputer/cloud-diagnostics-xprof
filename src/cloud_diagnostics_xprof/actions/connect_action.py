@@ -288,7 +288,7 @@ class Connect(action.Command):
     if not args.disconnect and args.mode == 'ssh':
       print(
           'Connected successfully!\n'
-          f'URL: https://localhost:{args.port}'
+          f'URL: http://localhost:{args.port}'
       )
 
     return stdout
