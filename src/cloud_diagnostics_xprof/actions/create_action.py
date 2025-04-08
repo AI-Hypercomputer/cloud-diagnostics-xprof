@@ -327,6 +327,7 @@ class Create(action.Command):
         vm_name=[vm_name],
         log_directory=None,
         zone=zone,
+        quiet=True,
     )
     delete_command_output = delete_command.run(delete_args, verbose=verbose)
     return delete_command_output
