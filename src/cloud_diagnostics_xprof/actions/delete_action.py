@@ -78,6 +78,12 @@ class Delete(action.Command):
         help='The GCP zone to delete the instance in.',
     )
     delete_parser.add_argument(
+        '--quiet',
+        '-q',
+        action='store_true',
+        help='Skip user confirmation to delete the instance(s).',
+    )
+    delete_parser.add_argument(
         '--verbose',
         '-v',
         action='store_true',
@@ -258,7 +264,11 @@ class Delete(action.Command):
     if not vm_candidates:
       raise ValueError('No VM(s) to delete.')
 
-    vm_names = self._confirm_vm_deletions(vm_candidates)
+    # Skip confirmation if user specified --quiet.
+    if args.quiet:
+      vm_names = vm_candidates
+    else:
+      vm_names = self._confirm_vm_deletions(vm_candidates)
 
     if not vm_names:
       raise ValueError('No VM(s) to delete.')
