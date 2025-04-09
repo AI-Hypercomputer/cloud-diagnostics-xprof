@@ -14,7 +14,7 @@
 
 """A create command implementation for the xprof CLI.
 
-This command is used as part of the xprof CLI to create a hosted TensorBoard
+This command is used as part of the xprof CLI to create a xprofiler
 instance. This will include other metadata such as labels to the log directory
 that are specific to the the xprof instance.
 """
@@ -140,12 +140,12 @@ _DEFAULT_EXTRA_ARGS_DESCRIBE: Mapping[str, str] = {
 
 
 class Create(action.Command):
-  """A command to delete a hosted TensorBoard instance."""
+  """A command to delete a xprofiler instance."""
 
   def __init__(self):
     super().__init__(
         name='create',
-        description='Create a new hosted TensorBoard instance.',
+        description='Create a new xprofiler instance.',
     )
     self.vm_name = f'{self.VM_BASE_NAME}-{uuid.uuid4()}'
 
@@ -160,7 +160,7 @@ class Create(action.Command):
     """
     create_parser = subparser.add_parser(
         name='create',
-        help='Create a hosted TensorBoard instance.',
+        help='Create a xprofiler instance.',
         formatter_class=argparse.RawTextHelpFormatter,  # Keeps format in help.
     )
     create_parser.add_argument(

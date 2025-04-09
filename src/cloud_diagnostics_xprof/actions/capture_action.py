@@ -15,7 +15,7 @@
 """A profile capture command implementation for the xprof CLI.
 
 This command is used as part of the xprof CLI to capture a profile from a
-running job that can be viewed in a hosted TensorBoard instance. The intention
+running job that can be viewed in a xprofiler instance. The intention
 is that this can be used to capture a profile from an instance using the
 `xprof capture` command.
 """
@@ -50,12 +50,12 @@ _SSH_CONNECTION_TIMED_OUT_MESSAGE = 'Connection timed out'
 
 
 class Capture(action.Command):
-  """A command to capture a profile from a hosted TensorBoard instance."""
+  """A command to capture a profile from a xprofiler instance."""
 
   def __init__(self):
     super().__init__(
         name='caputre',
-        description='Capture a profile from a hosted TensorBoard instance.',
+        description='Capture a profile from a xprofiler instance.',
     )
 
   def add_subcommand(
@@ -69,7 +69,7 @@ class Capture(action.Command):
     """
     capture_parser = subparser.add_parser(
         name='capture',
-        help='Capture a profile from a hosted TensorBoard instance.',
+        help='Capture a profile from a xprofiler instance.',
         formatter_class=argparse.RawTextHelpFormatter,  # Keeps format in help.
     )
     # log-directory is required.

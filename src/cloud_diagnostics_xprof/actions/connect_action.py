@@ -26,12 +26,12 @@ from cloud_diagnostics_xprof.actions import list_action
 
 
 class Connect(action.Command):
-  """A command to connect to a hosted TensorBoard instance."""
+  """A command to connect to a xprofiler instance."""
 
   def __init__(self):
     super().__init__(
         name='connect',
-        description='Connect to a hosted TensorBoard instance.',
+        description='Connect to a xprofiler instance.',
     )
 
   def add_subcommand(
@@ -45,7 +45,7 @@ class Connect(action.Command):
     """
     connect_parser = subparser.add_parser(
         name='connect',
-        help='Connect to a hosted TensorBoard instance.',
+        help='Connect to a xprofiler instance.',
         formatter_class=argparse.RawTextHelpFormatter,  # Keeps format in help.
     )
     connect_parser.add_argument(
@@ -181,7 +181,7 @@ class Connect(action.Command):
       extra_args: Mapping[str, str] | None = None,
       verbose: bool = False,
   ) -> Sequence[str]:
-    """Builds the command to connect to a hosted TensorBoard instance.
+    """Builds the command to connect to a xprofiler instance.
 
     Args:
       args: The arguments parsed from the command line.
@@ -189,7 +189,7 @@ class Connect(action.Command):
       verbose: Whether to print the command and other output.
 
     Returns:
-      The command to connect to a hosted TensorBoard instance.
+      The command to connect to a xprofiler instance.
     """
     # Check that log directory is specified.
     if not args.log_directory:

@@ -14,7 +14,7 @@
 
 """A delete command implementation for the xprof CLI.
 
-This command is used as part of the xprof CLI to delete a hosted TensorBoard
+This command is used as part of the xprof CLI to delete a xprofiler
 instance. The intention is that this can be used after creation of a new
 instance using the `xprof create` command (versus using for general instance
 deletion).
@@ -27,12 +27,12 @@ from cloud_diagnostics_xprof.actions import list_action
 
 
 class Delete(action.Command):
-  """A command to delete a hosted TensorBoard instance."""
+  """A command to delete a xprofiler instance."""
 
   def __init__(self):
     super().__init__(
         name='delete',
-        description='Delete a hosted TensorBoard instance.',
+        description='Delete a xprofiler instance.',
     )
 
   def add_subcommand(
@@ -46,7 +46,7 @@ class Delete(action.Command):
     """
     delete_parser = subparser.add_parser(
         name='delete',
-        help='Delete a hosted TensorBoard instance.',
+        help='Delete a xprofiler instance.',
         formatter_class=argparse.RawTextHelpFormatter,  # Keeps format in help.
     )
     # log-directory is optional.

@@ -14,7 +14,7 @@
 
 """A list command implementation for the xprof CLI.
 
-This command is used as part of the xprof CLI to list hosted TensorBoard
+This command is used as part of the xprof CLI to list xprofiler
 instances. The intention is that this can be used after creation of instances
 using the `xprof create` command.
 """
@@ -25,7 +25,7 @@ from cloud_diagnostics_xprof.actions import action
 
 
 class List(action.Command):
-  """A command to list a hosted TensorBoard instance."""
+  """A command to list a xprofiler instance."""
 
   _PROXY_URL = (
       'https://{backend_id}-dot-{region}.notebooks.googleusercontent.com'
@@ -34,7 +34,7 @@ class List(action.Command):
   def __init__(self):
     super().__init__(
         name='list',
-        description='List all hosted TensorBoard instances.',
+        description='List all xprofiler instances.',
     )
 
   def add_subcommand(
@@ -48,7 +48,7 @@ class List(action.Command):
     """
     list_parser = subparser.add_parser(
         name='list',
-        help='List all hosted TensorBoard instances.',
+        help='List all xprofiler instances.',
         formatter_class=argparse.RawTextHelpFormatter,  # Keeps format in help.
     )
     list_parser.add_argument(
