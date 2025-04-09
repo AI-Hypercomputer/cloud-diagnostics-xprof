@@ -22,7 +22,6 @@ that are specific to the the xprof instance.
 import argparse
 from collections.abc import Mapping, Sequence
 import json
-import re
 import time
 import uuid
 
@@ -34,6 +33,8 @@ from cloud_diagnostics_xprof.actions import list_action
 _WAIT_TIME_IN_SECONDS = 20
 _MAX_WAIT_TIME_IN_SECONDS = 300
 
+# Note that this string will replace multiple variables so string is not
+# necessarily valid bash.
 _OUTPUT_MESSAGE = r"""
 Instance for {LOG_DIRECTORY} has been created.
 You can access it via the following,
@@ -46,6 +47,9 @@ _TB_LAUNCHED_LABEL = 'tb_launched_ts'
 _TB_BACKEND_LABEL = 'tb_backend_id'
 
 _STARTUP_SCRIPT_STRING = r"""#! /bin/bash
+STARTUP_SCRIPT_BEGIN_TS=$(date +%s)
+gcloud compute instances add-labels {MY_INSTANCE_NAME} --zone={ZONE} --labels startup_script_begin=\"\$STARTUP_SCRIPT_BEGIN_TS\"
+
 echo \"Starting setup.\"
 apt-get update
 apt-get install -yq git supervisor python3 python3-pip python3-distutils python3-virtualenv
@@ -60,13 +64,20 @@ tensorboardvenv/bin/pip3 install importlib_resources
 tensorboardvenv/bin/pip3 install etils
 tensorboard --logdir {LOG_DIRECTORY} --host 0.0.0.0 --port 6006 &
 # Label VM with the current timestamp if TB has launched successfully.
-sleep 12  # Buffer time for TB to launch (just in case).
-if ps -ef | grep tensorboard > /dev/null; then
-    echo \"$(date): TensorBoard running.\"
-    TB_LAUNCHED_TS=$(date +%s)
-    gcloud compute instances add-labels {MY_INSTANCE_NAME} --zone={ZONE} --labels {TB_LAUNCHED_LABEL}=\"\$TB_LAUNCHED_TS\"
-else
-    echo \"$(date): TensorBoard failed to launch. Exiting...\"
+for (( attempt=1; attempt < 20; attempt++ )); do
+    if ps -ef | grep tensorboard > /dev/null; then
+        echo \"$(date): TensorBoard running.\"
+        TB_LAUNCHED_TS=$(date +%s)
+        gcloud compute instances add-labels {MY_INSTANCE_NAME} --zone={ZONE} --labels {TB_LAUNCHED_LABEL}=\"\$TB_LAUNCHED_TS\"
+        break
+    else
+        sleep 3
+    fi
+done
+# Label VM with the total number of attempts to launch TB.
+gcloud compute instances add-labels {MY_INSTANCE_NAME} --zone={ZONE} --labels tb_lanch_total_attempts=\"\$attempt\"
+if [[ \"\$attempt\" > 19 ]]; then
+    echo \"TensorBoard failed to launch after multiple attempts.\"
     exit 1
 fi
 # Setup forwarding agent and proxy
