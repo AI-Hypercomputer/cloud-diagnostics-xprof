@@ -265,11 +265,10 @@ class Command(abc.ABC):
 
     for line_number, line in enumerate(lines):
       # Check that the same number of columns and items in each line.
+      # These VMs are either being created or badly configured.
       if len(line) != len(columns_index):
-        raise ValueError(
-            f'Number of items in line {line_number} ({len(line)})'
-            f' does not match number of columns ({len(columns_index)})'
-        )
+        continue
+
       for n_item, column_value in enumerate(line):
         # Make sure we use the same order for the columns as the line values.
         data_table[columns_index[n_item]].append(column_value)

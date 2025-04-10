@@ -45,6 +45,8 @@ Instance is hosted at {VM_NAME} VM.
 
 _TB_LAUNCHED_LABEL = 'tb_launched_ts'
 _TB_BACKEND_LABEL = 'tb_backend_id'
+_TB_ATTEMPTS_LABEL = 'tb_attempts_count'
+_MAX_TB_ATTEMPTS = 19
 
 _STARTUP_SCRIPT_STRING = r"""#! /bin/bash
 STARTUP_SCRIPT_BEGIN_TS=$(date +%s)
@@ -64,10 +66,11 @@ tensorboardvenv/bin/pip3 install importlib_resources
 tensorboardvenv/bin/pip3 install etils
 tensorboard --logdir {LOG_DIRECTORY} --host 0.0.0.0 --port 6006 &
 # Label VM with the current timestamp if TB has launched successfully.
-for (( attempt=1; attempt < 20; attempt++ )); do
-    if ps -ef | grep tensorboard > /dev/null; then
-        echo \"$(date): TensorBoard running.\"
-        TB_LAUNCHED_TS=$(date +%s)
+for (( attempt=1; attempt < {MAX_TB_ATTEMPTS}; attempt++ )); do
+    p_out=\$(ps -ef| grep tensorboard)
+    if [[ \"\$p_out\" == *\"tensorboardvenv\"* ]]; then
+        echo \"\$(date): TensorBoard running.\"
+        TB_LAUNCHED_TS=\$(date +%s)
         gcloud compute instances add-labels {MY_INSTANCE_NAME} --zone={ZONE} --labels {TB_LAUNCHED_LABEL}=\"\$TB_LAUNCHED_TS\"
         break
     else
@@ -75,8 +78,8 @@ for (( attempt=1; attempt < 20; attempt++ )); do
     fi
 done
 # Label VM with the total number of attempts to launch TB.
-gcloud compute instances add-labels {MY_INSTANCE_NAME} --zone={ZONE} --labels tb_lanch_total_attempts=\"\$attempt\"
-if [[ \"\$attempt\" > 19 ]]; then
+gcloud compute instances add-labels {MY_INSTANCE_NAME} --zone={ZONE} --labels {TB_ATTEMPTS_LABEL}=\"\$attempt\"
+if [[ \"\$attempt\" -ge {MAX_TB_ATTEMPTS} ]]; then
     echo \"TensorBoard failed to launch after multiple attempts.\"
     exit 1
 fi
@@ -386,6 +389,9 @@ class Create(action.Command):
 
     Returns:
       The output of the command.
+
+    Raises:
+      RuntimeError: If the backend server cannot be started.
     """
     # Will raise an error if args are determined to be invalid.
     self._validate_run_args(args=args, verbose=verbose)
@@ -481,6 +487,14 @@ class Create(action.Command):
       )
       if verbose:
         print(f'{has_tb_backend_id=}')
+
+      # Exit if we've reached the max number of attempts for TensorBoard server.
+      if (
+          _TB_ATTEMPTS_LABEL in vm_labels
+          and int(vm_labels[_TB_ATTEMPTS_LABEL]) >= _MAX_TB_ATTEMPTS
+      ):
+        raise RuntimeError('Unable to start backend server.')
+
       if has_tb_backend_id:
         backend_id = json_output['labels']['tb_backend_id']
         break
@@ -501,8 +515,8 @@ class Create(action.Command):
     else:  # Setup failed so delete the VM (if created).
       print(
           'Timed out waiting for instance to be set up.\n'
-          f'Attempting to delete created VM {self.vm_name} since setup failed.'
       )
+
       # Delete the VM that was created.
       _ = self._delete_vm(
           vm_name=self.vm_name,
@@ -549,5 +563,7 @@ def startup_script_string(log_directory: str, vm_name: str, zone: str) -> str:
           RESULT_JSON='{RESULT_JSON}',
           TB_LAUNCHED_LABEL=_TB_LAUNCHED_LABEL,
           TB_BACKEND_LABEL=_TB_BACKEND_LABEL,
+          TB_ATTEMPTS_LABEL=_TB_ATTEMPTS_LABEL,
+          MAX_TB_ATTEMPTS=_MAX_TB_ATTEMPTS,
       )
   )

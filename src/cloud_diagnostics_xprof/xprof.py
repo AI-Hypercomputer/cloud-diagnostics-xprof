@@ -167,6 +167,8 @@ def main():
       )
     except ValueError as e:
       print(f'{e}')
+    except RuntimeError as e:
+      print(f'{e}')
 
 
 if __name__ == '__main__':
