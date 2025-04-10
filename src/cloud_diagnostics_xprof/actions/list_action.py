@@ -55,7 +55,6 @@ class List(action.Command):
         '--zone',
         '-z',
         metavar='ZONE_NAME',
-        required=True,
         help='The GCP zone to list the instances in.',
     )
     list_parser.add_argument(
@@ -181,12 +180,18 @@ class List(action.Command):
         'instances',
         'list',
     ]
-    # Note we still filter by zone since this is **significantly** faster than
-    # filtering with the `--filter` in gcloud
-    list_vms_command.append(f'--zones={args.zone}')
+    if args.zone:
+      # Note we still filter by zone since this is **significantly** faster than
+      # filtering with the `--filter` in gcloud
+      list_vms_command.append(f'--zones={args.zone}')
 
     list_vms_command.append(
-        '--format=table(labels.xprofiler_log_directory, labels.tb_backend_id, name)'
+        '--format=table('
+        'labels.xprofiler_log_directory'
+        ',labels.tb_backend_id'
+        ',name'
+        ',zone'
+        ')'
     )
 
     # Always filter by VM base name.
@@ -272,16 +277,19 @@ class List(action.Command):
 
     if display_str:
       # Define the columns using the defaults values.
-      columns = self.TABLE_COLUMNS
-      # Just the region from the zone. (e.g. us-central1-a -> us-central1)
-      region = '-'.join(args.zone.split('-')[:-1])
 
       lines = []
       for line in display_str.splitlines()[1:]:  # Ignores header line.
         split_line = line.split()
-        if len(split_line) != len(columns):
+        # Skips line if the number of columns to be displayed is not correct.
+        if len(split_line) != len(self.TABLE_COLUMNS):
+          if verbose:
+            print(
+                f'Skip line `{line}` since it has missing column values.'
+            )
           continue
-        log_directory, backend_id, name = split_line
+        log_directory, backend_id, name, zone = split_line
+
         # Make sure the log directory is starts with gs://
         log_directory_formatted = (
             'gs://'
@@ -290,6 +298,8 @@ class List(action.Command):
                 self._DEFAULT_STRING_REVERSE_REPLACEMENTS,
             )
         )
+        # Just the region from the zone. (e.g. us-central1-a -> us-central1)
+        region = '-'.join(zone.split('-')[:-1])
         backend_id_formatted = self._PROXY_URL.format(
             backend_id=backend_id,
             region=region,
@@ -298,11 +308,12 @@ class List(action.Command):
             log_directory_formatted,
             backend_id_formatted,
             name,
+            zone,
         ])
 
       # Display the table string.
       data_table = self.create_data_table(
-          columns=columns,
+          columns=self.TABLE_COLUMNS,
           lines=lines,
           verbose=verbose,
       )

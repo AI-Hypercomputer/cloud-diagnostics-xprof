@@ -37,6 +37,7 @@ class Command(abc.ABC):
       'Log_Directory',
       'URL',
       'Name',
+      'Zone',
   )
 
   @dataclasses.dataclass(frozen=True)

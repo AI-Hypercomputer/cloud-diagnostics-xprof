@@ -114,9 +114,9 @@ $ xprofiler create -z <zone> -l gs://<some-bucket>/<some-run>/tensorboard
 
 Instance for gs://<some-bucket>/<some-run>/tensorboard already exists.
 
-Log_Directory                              URL                                                                  Name
------------------------------------------  -------------------------------------------------------------------  ------------------------------------------
-gs://<some-bucket>/<some-run>/tensorboard  https://<id>-dot-us-<region>.notebooks.googleusercontent.com         xprof-97db0ee6-93f6-46d4-b4c4-6d024b34a99f
+Log_Directory                              URL                                                                  Name                                        Zone
+-----------------------------------------  -------------------------------------------------------------------  ------------------------------------------  -------
+gs://<some-bucket>/<some-run>/tensorboard  https://<id>-dot-us-<region>.notebooks.googleusercontent.com         xprof-97db0ee6-93f6-46d4-b4c4-6d024b34a99f  <zone>
 
 
 Do you want to continue to create another instance with the same log directory? (y/n)
@@ -165,16 +165,18 @@ ZONE=us-central1-a
 
 xprofiler list -z $ZONE
 ```
-> Note: The `-z (--zone)` flag is required.
+> Note: The `-z (--zone)` flag is not required but is highly recommended.
+> If a zone is not provided, the command can take longer to search for all
+> relevant VM instances.
 
 This will output something like the following if there are instances matching
 the list criteria:
 
 ```bash
-Log_Directory                              URL                                                                  Name
------------------------------------------  -------------------------------------------------------------------  ------------------------------------------
-gs://<some-bucket>/<some-run>/tensorboard  https://<id>-dot-us-<region>.notebooks.googleusercontent.com         xprof-97db0ee6-93f6-46d4-b4c4-6d024b34a99f
-gs://<some-bucket>/<some-run>/tensorboard  https://<id>-dot-us-<region>.notebooks.googleusercontent.com         xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef
+Log_Directory                              URL                                                                  Name                                        Zone
+-----------------------------------------  -------------------------------------------------------------------  ------------------------------------------  -------
+gs://<some-bucket>/<some-run>/tensorboard  https://<id>-dot-us-<region>.notebooks.googleusercontent.com         xprof-97db0ee6-93f6-46d4-b4c4-6d024b34a99f  <zone>
+gs://<some-bucket>/<some-run>/tensorboard  https://<id>-dot-us-<region>.notebooks.googleusercontent.com         xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  <zone>
 ```
 
 Note you can specify the GCS bucket to get just that one associated instance:
@@ -193,9 +195,9 @@ VM instances' names. Specifying the zone is required.
 xprofiler delete -z us-central1-b -l gs://<some-bucket>/<some-run>/tensorboard
 
 Found 1 VM(s) to delete.
-Log_Directory                              URL                                                                  Name
------------------------------------------  -------------------------------------------------------------------  ------------------------------------------
-gs://<some-bucket>/<some-run>/tensorboard  https://<id>-dot-us-<region>.notebooks.googleusercontent.com         xprof-8187640b-e612-4c47-b4df-59a7fc86b253
+Log_Directory                              URL                                                                  Name                                        Zone
+-----------------------------------------  -------------------------------------------------------------------  ------------------------------------------  -------
+gs://<some-bucket>/<some-run>/tensorboard  https://<id>-dot-us-<region>.notebooks.googleusercontent.com         xprof-8187640b-e612-4c47-b4df-59a7fc86b253  <zone>
 
 Do you want to continue to delete the VM `xprof-8187640b-e612-4c47-b4df-59a7fc86b253`?
 Enter y/n: y
@@ -339,7 +341,7 @@ Usage details:
 ```
 xprofiler list
   [--help]
-  --zone ZONE_NAME
+  [--zone ZONE_NAME]
   [--log-directory GS_PATH [GS_PATH ...]]
   [--filter FILTER_NAME [FILTER_NAME ...]]
   [--verbose]
