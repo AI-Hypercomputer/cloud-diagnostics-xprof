@@ -64,7 +64,11 @@ class XprofParser:
         '--abbrev',
         '-a',
         action='store_true',
-        help='Abbreviate the output.',
+        help=(
+            '[EXPERIMENTAL] Abbreviate the output. '
+            'This is an experimental feature and may change in the future'
+            ' or may be removed completely.'
+        ),
     )
 
     # Allow for future commands.
