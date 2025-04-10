@@ -241,7 +241,7 @@ class Create(action.Command):
     extra_args |= _DEFAULT_EXTRA_ARGS
 
     labels = {
-        'log_directory': args.log_directory,
+        'xprofiler_log_directory': args.log_directory,
     }
     extra_args |= {'--labels': self._format_label_string(labels)}
 
