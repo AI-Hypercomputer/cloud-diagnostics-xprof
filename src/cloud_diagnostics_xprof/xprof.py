@@ -14,7 +14,7 @@
 
 """CLI tool to manage hosted TensorBoard instances.
 
-xprof wraps existing tools and commands to provide a more user friendly
+xprofiler wraps existing tools and commands to provide a more user friendly
 interface for managing hosted TensorBoard instances. Specifically, it provides
 a CLI interface to create, list, and delete hosted TensorBoard instances
 centered around a log directory as the 'primary key'.
