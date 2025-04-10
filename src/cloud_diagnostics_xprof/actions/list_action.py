@@ -187,7 +187,7 @@ class List(action.Command):
 
     list_vms_command.append(
         '--format=table('
-        'labels.xprofiler_log_directory'
+        f'labels.{self.LOG_DIRECTORY_LABEL_KEY}'
         ',labels.tb_backend_id'
         ',name'
         ',zone'
@@ -218,7 +218,7 @@ class List(action.Command):
           for log_directory in args.log_directory
       ]
       main_filter_values |= {
-          'labels.xprofiler_log_directory': log_directory_strings,
+          f'labels.{self.LOG_DIRECTORY_LABEL_KEY}': log_directory_strings,
       }
     # True if any matches exactly.
     main_filter_string = self._format_filter_string(

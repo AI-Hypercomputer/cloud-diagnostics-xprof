@@ -241,7 +241,7 @@ class Create(action.Command):
     extra_args |= _DEFAULT_EXTRA_ARGS
 
     labels = {
-        'xprofiler_log_directory': args.log_directory,
+        self.LOG_DIRECTORY_LABEL_KEY: args.log_directory,
         'xprofiler_version': 'v0-0-10',
     }
     extra_args |= {'--labels': self._format_label_string(labels)}
@@ -432,10 +432,10 @@ class Create(action.Command):
     )
 
     # Ask user if they want to create another instance or quit.
-    if log_directory_formatted in data_table.get('LOG_DIRECTORY', []):
-      print(
-          f'Instance for {args.log_directory} already exists.\n'
-      )
+    if log_directory_formatted in data_table.get(
+        self.LOG_DIRECTORY_LABEL_KEY.upper(), []
+    ):
+      print(f'Instance for {args.log_directory} already exists.\n')
       # Display the instances & information to the user.
       list_command.display(
           display_str=list_command_output,

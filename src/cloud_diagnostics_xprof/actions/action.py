@@ -39,6 +39,7 @@ class Command(abc.ABC):
       'Name',
       'Zone',
   )
+  LOG_DIRECTORY_LABEL_KEY = 'xprofiler_log_directory'
 
   @dataclasses.dataclass(frozen=True)
   class Replacement:
