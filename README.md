@@ -81,7 +81,7 @@ zone. Project information will be retrieved from gcloud config.
 
 ```bash
 ZONE="<some zone>"
-GCS_PATH="gs://<some-bucket>/<some-run>"
+GCS_PATH="gs://<some-bucket>/<some-run>/tensorboard"
 
 xprofiler create -z $ZONE -l $GCS_PATH
 ```
@@ -110,7 +110,7 @@ During `create`, Users will be prompted if they would like to create a second
 instance for the same gcs path. Pressing anything but Y/y will exit the program.
 
 ```
-$ xprofiler create -z us-central1-a -l gs://<some-bucket>/<some-run>/tensorboard
+$ xprofiler create -z <zone> -l gs://<some-bucket>/<some-run>/tensorboard
 
 Instance for gs://<some-bucket>/<some-run>/tensorboard already exists.
 
@@ -123,11 +123,11 @@ Do you want to continue to create another instance with the same log directory? 
 y
 Waiting for instance to be created. It can take a few minutes.
 
-Instance for gs://tyagiva-test/test-job55 has been created.
+Instance for gs://<some-bucket>/<some-run>/tensorboard has been created.
 You can access it via following,
-1. xprofiler connect -z us-central1-b -l gs://tyagiva-test/test-job55 -m ssh
+1. xprofiler connect -z <zone> -l gs://<some-bucket>/<some-run>/tensorboard -m ssh
 2. [Experimental (supports smaller files, < 200mb)] https://<id>-dot-us-<region>.notebooks.googleusercontent.com.
-Instance is hosted at xprof-97db0ee6-93f6-46d4-b4c4-6d024b34a99f VM.
+Instance is hosted at xprof-<uuid> VM.
 ```
 
 ### Open `xprofiler` Instance
@@ -165,7 +165,7 @@ ZONE=us-central1-a
 
 xprofiler list -z $ZONE
 ```
-> NOTE: The `-z (--zone)` flag is required.
+> Note: The `-z (--zone)` flag is required.
 
 This will output something like the following if there are instances matching
 the list criteria:
@@ -306,7 +306,7 @@ invoking a subcommand.
 Gives additional information about using the command including flag options and
 available subcommands. Also can be called with `xprofiler -h`.
 
-> Note that each subcommand has a `-h (--help)` flag that can give information
+> Note: that each subcommand has a `-h (--help)` flag that can give information
 about that specific subcommand. For example: `xprofiler list -h`
 
 ### Subcommand: `xprofiler create`
@@ -379,8 +379,8 @@ xprofiler capture
   --log-directory GS_PATH
   --zone ZONE_NAME
   --hosts HOST_NAME [HOST_NAME ...]
-  --duration DURATION
   --framework FRAMEWORK
+  [--duration DURATION]
   [--port LOCAL_PORT]
   [--verbose]
 ```
