@@ -405,7 +405,7 @@ class Create(action.Command):
       print('Checking if VM already exists.')
     list_command = list_action.List()
     list_args = argparse.Namespace(
-        zone=args.zone,
+        zones=[args.zone],
         log_directory=[
             args.log_directory,  # Ensure this is treated as one item.
         ],

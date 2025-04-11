@@ -109,7 +109,7 @@ class Delete(action.Command):
     # Use the list action to get the VM name(s).
     list_command = list_action.List()
     list_args = argparse.Namespace(
-        zone=zone,
+        zones=[zone],
         log_directory=log_directories,
         filter=None,
         verbose=verbose,

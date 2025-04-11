@@ -165,7 +165,7 @@ ZONE=us-central1-a
 
 xprofiler list -z $ZONE
 ```
-> Note: The `-z (--zone)` flag is not required but is highly recommended.
+> Note: The `-z (--zones)` flag is not required but is highly recommended.
 > If a zone is not provided, the command can take longer to search for all
 > relevant VM instances.
 
@@ -341,7 +341,7 @@ Usage details:
 ```
 xprofiler list
   [--help]
-  [--zone ZONE_NAME]
+  [--zones ZONE_NAME [ZONE_NAME ...]]
   [--log-directory GS_PATH [GS_PATH ...]]
   [--filter FILTER_NAME [FILTER_NAME ...]]
   [--verbose]

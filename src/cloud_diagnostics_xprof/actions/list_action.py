@@ -52,8 +52,9 @@ class List(action.Command):
         formatter_class=argparse.RawTextHelpFormatter,  # Keeps format in help.
     )
     list_parser.add_argument(
-        '--zone',
+        '--zones',
         '-z',
+        nargs='+',  # Allow multiple zones
         metavar='ZONE_NAME',
         help='The GCP zone to list the instances in.',
     )
@@ -180,10 +181,11 @@ class List(action.Command):
         'instances',
         'list',
     ]
-    if args.zone:
+    if args.zones:
       # Note we still filter by zone since this is **significantly** faster than
       # filtering with the `--filter` in gcloud
-      list_vms_command.append(f'--zones={args.zone}')
+      zones_string = ','.join(args.zones)
+      list_vms_command.append(f'--zones={zones_string}')
 
     list_vms_command.append(
         '--format=table('
