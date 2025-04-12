@@ -57,7 +57,8 @@ Home-page: https://github.com/AI-Hypercomputer/cloud-diagnostics-xprof
 Author: Author-email: Hypercompute Diagon <hypercompute-diagon@google.com>
 ```
 
-### Pemissions
+### Permissions
+
 `xprofiler` relies on project level IAM permissions.
 
 * Users must have Compute User or Editor permissions on the project.
@@ -66,13 +67,47 @@ from GCS bucket. `<project-number>`-compute@developer.gserviceaccount.com should
 have Storage Object User access on the target bucket.
 
 ### GCS Path Recommendations
-Xprofiler follows a path pattern to identify different profile sessions stored
+
+`xprofiler` follows a path pattern to identify different profile sessions stored
 in a bucket. This allows visualization of multiple profiling sessions using the
 same `xprofiler` instance.
 
 * For xprofiler capture command, use `gs://<bucket-name>/<run-name>` pattern.
 * All files will be stored in `gs://<bucket-name>/<run-name>/tensorboard/plugin/profile/<session_id>`.
 * For xprofiler create command, use `gs://<bucket-name>/<run-name>/tensorboard` pattern.
+
+Also, paths should be reasonably short so they can be properly associated with
+their relevant VM instance.
+The conventions for path names inherit from Google Cloud's requirements for
+[labels](https://cloud.google.com/compute/docs/labeling-resources#requirements).
+The specific restrictions are enumerated below:
+
+* File paths must start with `gs://`.
+* File paths contain only lowercase letters, numeric characters, underscores,
+  and dashes. All characters must use UTF-8 encoding, and international
+  characters are allowed. Note forward-slashes `/` are acceptable to distinguish
+  subdirectories.
+* File paths should be under 64 characters.
+* The number of subdirectories from the GCS path should be under 32. (32 when
+  including the bucket name)
+
+#### Examples of proper and improper GCS paths:
+
+```
+# Proper path (note forward slash at end is optional)
+gs://my-bucket/main_directory/sub-a/sub-b/
+
+# Proper path
+gs://my_other_bucket/main_directory/sub-1/sub-2
+
+# Improper path: does not start with gs://
+my_other_bucket/main_directory/sub-1/sub-2
+
+# Improper path: longer than 64 characters
+gs://my-bucket/main_directory/subdirectory-a/subdirectory-b/subdirectory-c
+```
+
+> Note: Future versions may allow for compatibility with more GCS paths.
 
 ### Create `xprofiler` Instance
 
