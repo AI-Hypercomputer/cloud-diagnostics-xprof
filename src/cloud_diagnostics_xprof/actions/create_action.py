@@ -242,7 +242,7 @@ class Create(action.Command):
 
     labels = {
         self.LOG_DIRECTORY_LABEL_KEY: args.log_directory,
-        'xprofiler_version': 'v0-0-10',
+        self.XPROFILER_VERSION_LABEL_KEY: self.XPROFILER_VERSION,
     }
     extra_args |= {'--labels': self._format_label_string(labels)}
 

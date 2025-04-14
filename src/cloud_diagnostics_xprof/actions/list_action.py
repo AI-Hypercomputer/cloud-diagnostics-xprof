@@ -208,6 +208,10 @@ class List(action.Command):
         match_operator='~',
         join_operator='AND',
     )
+    # Include if xprofiler version is specified.
+    full_filter_string = (
+        f'({full_filter_string} OR labels.{self.XPROFILER_VERSION_LABEL_KEY}:*)'
+    )
 
     main_filter_values: Mapping[str, list[str]] = {}
     # If log directory is specified, we will also filter in addition to others.

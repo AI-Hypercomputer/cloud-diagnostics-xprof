@@ -40,6 +40,8 @@ class Command(abc.ABC):
       'Zone',
   )
   LOG_DIRECTORY_LABEL_KEY = 'xprofiler_log_directory'
+  XPROFILER_VERSION_LABEL_KEY = 'xprofiler_version'
+  XPROFILER_VERSION = 'v0-0-10'
 
   @dataclasses.dataclass(frozen=True)
   class Replacement:
