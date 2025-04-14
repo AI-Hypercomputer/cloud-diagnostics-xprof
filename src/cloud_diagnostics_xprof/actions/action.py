@@ -223,6 +223,9 @@ class Command(abc.ABC):
     # Create one string before using replacements.
     strings = []
     for key, value in labels.items():
+      # For consistency, remove trailing forward slash is present.
+      if value[-1] == '/':
+        value = value[:-1]
       strings.append(f'{key}={value}')
     labels_string = ','.join(strings)
 
