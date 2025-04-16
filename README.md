@@ -80,26 +80,12 @@ same `xprofiler` instance.
 
 * For xprofiler capture command, use `gs://<bucket-name>/<run-name>` pattern.
 * All files will be stored in `gs://<bucket-name>/<run-name>/tensorboard/plugin/profile/<session_id>`.
-* For xprofiler create command, use `gs://<bucket-name>/<run-name>/tensorboard` pattern.
-
-Also, paths should be reasonably short so they can be properly associated with
-their relevant VM instance.
-The conventions for path names inherit from Google Cloud's requirements for
-[labels](https://cloud.google.com/compute/docs/labeling-resources#requirements).
-The specific restrictions are enumerated below:
-
-* File paths must start with `gs://`.
-* File paths contain only lowercase letters, numeric characters, underscores,
-  and dashes. All characters must use UTF-8 encoding, and international
-  characters are allowed. Note forward-slashes `/` are acceptable to distinguish
-  subdirectories.
-* File paths should be under 64 characters.
-* The number of subdirectories from the GCS path should be under 32. (32 when
-  including the bucket name)
+* For `xprofiler create` command, use `gs://<bucket-name>/<run-name>/tensorboard`
+  pattern.
 
 #### Examples of proper and improper GCS paths:
 
-```
+```bash
 # Proper path (note forward slash at end is optional)
 gs://my-bucket/main_directory/sub-a/sub-b/
 
@@ -108,12 +94,7 @@ gs://my_other_bucket/main_directory/sub-1/sub-2
 
 # Improper path: does not start with gs://
 my_other_bucket/main_directory/sub-1/sub-2
-
-# Improper path: longer than 64 characters
-gs://my-bucket/main_directory/subdirectory-a/subdirectory-b/subdirectory-c
 ```
-
-> Note: Future versions may allow for compatibility with more GCS paths.
 
 ### Create `xprofiler` Instance
 
