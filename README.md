@@ -22,6 +22,8 @@ are preprovisioned with TensorBoard and latest profiling tools.
 
 ## Quickstart
 
+These steps can be setup on user's workstation/cloudtop.
+
 ### Install Dependencies
 
 `xprofiler` relies on using [gcloud](https://cloud.google.com/sdk).
@@ -307,8 +309,12 @@ tf.profiler.experimental.stop()
 ##### Manual profile capture
 Users can trigger profile capture on target hosts using capture command.
 
+###### GCE
+
 * For jax, SDK requires tensorboard_plugin_profile package and the same must be
 available on target VMs.
+> Note: xprofiler uses gsutil to move files to GCS bucket from target VM. VMs
+must have gcloud pre-installed.
 
 ```bash
 # Trigger capture profile
@@ -323,6 +329,57 @@ Starting profile capture on host vm_name1.
 Profile saved to gs://<some-bucket>/<some-run>/tensorboard and session id is session_2025_04_03_18_13_49.
 
 Starting profile capture on host vm_name2.
+Profile saved to gs://<some-bucket>/<some-run>/tensorboard and session id is session_2025_04_03_18_13_49.
+```
+
+###### GKE
+
+For GKE, Users are required to setup kubectl and cluster context on their
+machines.
+
+* Setup [kubectl](https://cloud.google.com/kubernetes-engine/docs/how-to/cluster-access-for-kubectl).
+
+* Set current cluster context.
+
+```bash
+gcloud container clusters get-credentials <cluster_name> --region=<region>
+```
+
+subsequently, users can validate if current context is setup properly.
+
+```bash
+kubectl config current-context
+gke_<project_id>_<region>_<cluster_name>
+```
+
+* Users can get a mapping between pods and nodes using `kubectl get pods`
+command. For GKE, We can pass a list of pods to `xprofiler capture` command to
+initiate profile capture.
+
+```bash
+$ kubectl get pods -o wide| awk '{print $1"\t\t"$7}'
+```
+
+> Note:For jax, SDK requires tensorboard_plugin_profile package and the same
+must be available on target Pods.
+
+> Note: Xprofiler uses gsutil to move files to GCS bucket from pod. Container
+image must have gcloud pre-installed.
+
+```bash
+# Trigger capture profile
+xprofiler capture \
+-z <zone> \
+-o gke \
+-l gs://<some-bucket>/<some-run> \
+-f jax \ # jax or pytorch \
+-n pod_1 pod_2 pod_3 \
+-d 2000 # duration in ms
+
+Starting profile capture on pod_1.
+Profile saved to gs://<some-bucket>/<some-run>/tensorboard and session id is session_2025_04_03_18_13_49.
+
+Starting profile capture on pod_2.
 Profile saved to gs://<some-bucket>/<some-run>/tensorboard and session id is session_2025_04_03_18_13_49.
 ```
 
@@ -417,6 +474,7 @@ xprofiler capture
   --zone ZONE_NAME
   --hosts HOST_NAME [HOST_NAME ...]
   --framework FRAMEWORK
+  [--orchestrator ORCHESTRATOR]
   [--duration DURATION]
   [--port LOCAL_PORT]
   [--verbose]
