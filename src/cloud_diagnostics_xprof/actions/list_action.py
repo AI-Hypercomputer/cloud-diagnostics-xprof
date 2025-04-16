@@ -21,6 +21,9 @@ using the `xprof create` command.
 
 import argparse
 from collections.abc import Mapping, Sequence
+import json
+from typing import Any
+
 from cloud_diagnostics_xprof.actions import action
 
 
@@ -155,6 +158,48 @@ class List(action.Command):
       print(f'Final filter string: {filter_string}')
     return filter_string
 
+  def get_log_directory_from_vm(
+      self,
+      vm: Mapping[str, Any],
+      verbose: bool = False,
+  ) -> str | None:
+    """Gets the log directory from the VM.
+
+    Args:
+      vm: The VM to get the log directory from (dictionary).
+      verbose: Whether to print the command and other output.
+
+    Returns:
+      The log directory from the VM formatted as URL.
+    """
+    log_directory_from_metadata = (
+        vm
+        .get('metadata', {})
+        .get('items', [])
+    )
+    # Assume the items is a list and the first item is the log directory.
+    # This if given by the gcloud's `--format` flag; specifically from
+    # `metadata.items.extract({self.LOG_DIRECTORY_LABEL_KEY})`
+    if log_directory_from_metadata:
+      log_directory_formatted = log_directory_from_metadata[0]
+      if verbose:
+        print(f'Log directory from metadata: {log_directory_formatted}')
+    else:  # Old method if not in metadata.
+      log_directory_formatted = self.format_string_with_replacements(
+          vm.get('labels', {}).get(self.LOG_DIRECTORY_LABEL_KEY, ''),
+          self._DEFAULT_STRING_REVERSE_REPLACEMENTS,
+      )
+      if log_directory_formatted:
+        log_directory_formatted = 'gs://' + log_directory_formatted
+        if verbose:
+          print(f'Log directory from labels: {log_directory_formatted}')
+      else:  # No log directory found with either method.
+        if verbose:
+          print('No log directory found via any method.')
+        log_directory_formatted = None
+
+    return log_directory_formatted
+
   def _build_command(
       self,
       args: argparse.Namespace,
@@ -187,55 +232,31 @@ class List(action.Command):
       zones_string = ','.join(args.zones)
       list_vms_command.append(f'--zones={zones_string}')
 
+    # Getting output format to later be parsed into a data table.
     list_vms_command.append(
-        '--format=table('
-        f'labels.{self.LOG_DIRECTORY_LABEL_KEY}'
+        '--format=json('
+        f'metadata.items.extract({self.LOG_DIRECTORY_LABEL_KEY})'
+        f',labels.{self.LOG_DIRECTORY_LABEL_KEY}'
         ',labels.tb_backend_id'
         ',name'
         ',zone'
         ')'
     )
 
-    # Always filter by VM base name.
-    base_filter_values: Mapping[str, list[str]] = dict(
-        name=[
+    # Filter by VM base name (old method) or has version label (new method).
+    base_filter_values: Mapping[str, list[str]] = {
+        'name': [
             self.VM_BASE_NAME,
         ],
-    )
-    # Allow this full filter string to be built up.
+        f'labels.{self.XPROFILER_VERSION_LABEL_KEY}': ['*'],
+    }
+
+    # Filter log directoy or other user-provided filters after runing command.
     full_filter_string = self._format_filter_string(
         base_filter_values,
         match_operator='~',
-        join_operator='AND',
-    )
-    # Include if xprofiler version is specified.
-    full_filter_string = (
-        f'({full_filter_string} OR labels.{self.XPROFILER_VERSION_LABEL_KEY}:*)'
-    )
-
-    main_filter_values: Mapping[str, list[str]] = {}
-    # If log directory is specified, we will also filter in addition to others.
-    if args.log_directory:
-      log_directory_strings = [
-          self._format_string_with_replacements(
-              original_string=log_directory,
-              replacements=self._DEFAULT_STRING_REPLACEMENTS,
-          )
-          for log_directory in args.log_directory
-      ]
-      main_filter_values |= {
-          f'labels.{self.LOG_DIRECTORY_LABEL_KEY}': log_directory_strings,
-      }
-    # True if any matches exactly.
-    main_filter_string = self._format_filter_string(
-        main_filter_values,
-        match_operator='=',
         join_operator='OR',
     )
-
-    # Allow this full filter string to be built up.
-    if main_filter_string:
-      full_filter_string += f' AND {main_filter_string}'
 
     # Allow user provided filters as additional filters.
     if args.filter:
@@ -247,7 +268,10 @@ class List(action.Command):
 
       # AND the main filter string with the filter string.
       # Paranetheses are needed if the filter string from user uses OR.
-      full_filter_string += f' AND ({filter_string})'
+      full_filter_string = (
+          f'({full_filter_string})'
+          f' AND ({filter_string})'
+      )
 
     if verbose:
       print(f'Full filter string: {full_filter_string}')
@@ -263,6 +287,106 @@ class List(action.Command):
       print(list_vms_command)
 
     return list_vms_command
+
+  def run(
+      self,
+      args: argparse.Namespace,
+      extra_args: Mapping[str, str] | None = None,
+      verbose: bool = False,
+  ) -> str:
+    """Run the command.
+
+    Args:
+      args: The arguments parsed from the command line.
+      extra_args: Any extra arguments to pass to the command.
+      verbose: Whether to print the command and other output.
+
+    Returns:
+      The output of the command.
+    """
+
+    # Run the command and get the output.
+    command = self._build_command(args, extra_args, verbose)
+    if verbose:
+      print(f'Command to run: {command}')
+
+    stdout: str = self._run_command(command, verbose=verbose)
+    output_data = json.loads(stdout)
+
+    vm_matches = []
+
+    # Filter the output based on user provided filters.
+    # This is an alternative to using gcloud's `--filter` flag to allow for
+    # filtering on multiple keys. (Appears to be a bug in gcloud.)
+    if args.log_directory:
+      # Assume the old version is 0.0.10.
+      old_version_replacements = self.LOG_DIRECTORY_STRING_REPLACEMENTS.get(
+          '0.0.10',
+          self.DEFAULT_STRING_REPLACEMENTS,
+      )
+      # Assume thecurrent version is default (can be confirm xprofiler version).
+      current_version_replacements = self.DEFAULT_STRING_REPLACEMENTS
+
+      for log_directory in args.log_directory:
+        if verbose:
+          print(f'Checking for {log_directory=}')
+        # Format the log directory string for the old version labeling.
+        log_dir_str_old_version = self.format_string_with_replacements(
+            log_directory,
+            old_version_replacements,
+        )
+        if verbose:
+          print(
+              f'Log directory string (old version): {log_dir_str_old_version=}'
+          )
+        # Format the log directory string for the new version labeling.
+        # Add gs:// prefix back to search with.
+        log_dir_str = 'gs://' + self.format_string_with_replacements(
+            original_string=log_directory,
+            replacements=current_version_replacements,
+        )
+        if verbose:
+          print(f'Log directory string: {log_dir_str=}')
+        # Remove VM from list but use for final output if matches.
+        found_vm: bool = False
+        for vm in output_data:
+          # New method: log directory found in metadata.
+          vm_log_dir_metadata = (
+              vm
+              .get('metadata', {})
+              .get('items', [])
+          )
+          # Old method: log directory formatted string matches label.
+          vm_log_dir_label = (
+              vm
+              .get('labels', {})
+              .get(self.LOG_DIRECTORY_LABEL_KEY)
+          )
+          # Check if string within the list
+          if log_dir_str in vm_log_dir_metadata:
+            found_vm = True
+            if verbose:
+              print(
+                  f'Found VM match via metadata for {log_directory}'
+                  f': {vm.get("name")}'
+              )
+          elif log_dir_str_old_version == vm_log_dir_label:
+            found_vm = True
+            if verbose:
+              print(
+                  f'Found VM match via labels for {log_directory}'
+                  f': {vm.get("name")}'
+              )
+          if found_vm:
+            vm_matches.append(vm)
+            # Keep checking in case there are other VMs with same log directory.
+            found_vm = False
+    else:  # No log directory provided, so just use the output as is.
+      vm_matches = output_data
+
+    # Creates a string of JSON for the display method to handle.
+    result_str = json.dumps(vm_matches)
+    return result_str
 
   def display(
       self,
@@ -282,34 +406,47 @@ class List(action.Command):
     """
 
     if display_str:
+      data = json.loads(display_str)
+      # Define the columns
       # Define the columns using the defaults values.
 
       lines = []
-      for line in display_str.splitlines()[1:]:  # Ignores header line.
-        split_line = line.split()
-        # Skips line if the number of columns to be displayed is not correct.
-        if len(split_line) != len(self.TABLE_COLUMNS):
+      for vm in data:
+        name = vm.get('name', '')
+
+        # Get the log directory from the VM.
+        log_directory_formatted = self.get_log_directory_from_vm(
+            vm,
+            verbose=verbose,
+        )
+        # Skip VM if no log directory found.
+        if not log_directory_formatted:
           if verbose:
             print(
-                f'Skip line `{line}` since it has missing column values.'
+                'Skip displaying since no log directory found'
+                f' for {name} ({vm}).'
             )
           continue
-        log_directory, backend_id, name, zone = split_line
-
-        # Make sure the log directory is starts with gs://
-        log_directory_formatted = (
-            'gs://'
-            + self._format_string_with_replacements(
-                log_directory,
-                self._DEFAULT_STRING_REVERSE_REPLACEMENTS,
-            )
+        # Usually apears in URL format: https://.../zones/us-central1-a
+        zone = (
+            vm
+            .get('zone', '')
+            .split('/')[-1]
         )
         # Just the region from the zone. (e.g. us-central1-a -> us-central1)
-        region = '-'.join(zone.split('-')[:-1])
+        region = '-'.join(
+            zone
+            .split('-')[:-1]
+        )
         backend_id_formatted = self._PROXY_URL.format(
-            backend_id=backend_id,
+            backend_id=(
+                vm
+                .get('labels', {})
+                .get('tb_backend_id')
+            ),
             region=region,
         )
+
         lines.append([
             log_directory_formatted,
             backend_id_formatted,

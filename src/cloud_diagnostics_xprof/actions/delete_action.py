@@ -22,6 +22,7 @@ deletion).
 
 import argparse
 from collections.abc import Mapping, Sequence
+import json
 from cloud_diagnostics_xprof.actions import action
 from cloud_diagnostics_xprof.actions import list_action
 
@@ -123,13 +124,11 @@ class Delete(action.Command):
     if verbose:
       print(command_output)
 
-    vm_names = (
-        command_output
-        .strip()  # Removes the extra new line(s) that tends to be at the end.
-        .split('\n')[1:]  # Ignores header line.
-    )
-
-    vm_names = [vm_name.split()[2] for vm_name in vm_names]
+    # Get VM names from the list output.
+    vm_names = [
+        vm['name']
+        for vm in json.loads(command_output)
+    ]
 
     return vm_names
 
@@ -163,7 +162,7 @@ class Delete(action.Command):
     ]
     list_args = argparse.Namespace(
         log_directory=None,
-        zone=zone,
+        zones=[zone],
         filter=filter_args,
         verbose=verbose,
     )

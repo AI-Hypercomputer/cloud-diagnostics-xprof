@@ -241,10 +241,9 @@ class Create(action.Command):
     extra_args |= _DEFAULT_EXTRA_ARGS
 
     labels = {
-        self.LOG_DIRECTORY_LABEL_KEY: args.log_directory,
         self.XPROFILER_VERSION_LABEL_KEY: self.XPROFILER_VERSION,
     }
-    extra_args |= {'--labels': self._format_label_string(labels)}
+    extra_args |= {'--labels': self.format_label_string(labels)}
 
     if verbose:
       print(f'Will create VM w/ name: {self.vm_name}')
@@ -257,7 +256,22 @@ class Create(action.Command):
     if verbose:
       print(f'Using startup script:\n{startup_entry_script}')
 
-    extra_args |= {'--metadata': 'startup-script=' + startup_entry_script}
+    log_directory_formatted_string = (
+        'gs://'
+        + self.format_string_with_replacements(
+            original_string=args.log_directory,
+            replacements=self.DEFAULT_STRING_REPLACEMENTS,
+        )
+    )
+
+    # Include version, log directory, and startup script in metadata.
+    extra_args |= {
+        '--metadata': (
+            f'{self.XPROFILER_VERSION_LABEL_KEY}={self.XPROFILER_VERSION}'
+            f',{self.LOG_DIRECTORY_LABEL_KEY}={log_directory_formatted_string}'
+            f',startup-script={startup_entry_script}'
+        )
+    }
 
     create_vm_command = [
         self.GCLOUD_COMMAND,
@@ -415,26 +429,21 @@ class Create(action.Command):
     list_command_output = list_command.run(list_args, verbose=verbose)
     if verbose:
       print(list_command_output)
+    vm_data = json.loads(list_command_output)
 
-    # Extract the VM name from the list command output.
-    all_lines = list_command_output.strip().split('\n')
-    columns: list[str] = all_lines.pop(0).split()
-    lines = [line.split() for line in all_lines]
-    data_table = self.create_data_table(
-        columns=columns,
-        lines=lines,
-        verbose=verbose,
-    )
     # Make sure we can compare with what we expect the output to looks like.
-    log_directory_formatted = self._format_string_with_replacements(
+    log_directory_formatted = 'gs://' + self.format_string_with_replacements(
         original_string=args.log_directory,
-        replacements=self._DEFAULT_STRING_REPLACEMENTS,
+        replacements=self.DEFAULT_STRING_REPLACEMENTS,
+    )
+    # Get all the log directories from the VMs.
+    all_vm_log_dirs = (
+        list_command.get_log_directory_from_vm(vm=vm, verbose=verbose)
+        for vm in vm_data
     )
 
     # Ask user if they want to create another instance or quit.
-    if log_directory_formatted in data_table.get(
-        self.LOG_DIRECTORY_LABEL_KEY.upper(), []
-    ):
+    if log_directory_formatted in all_vm_log_dirs:
       print(f'Instance for {args.log_directory} already exists.\n')
       # Display the instances & information to the user.
       list_command.display(

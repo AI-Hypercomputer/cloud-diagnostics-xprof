@@ -41,7 +41,8 @@ class Command(abc.ABC):
   )
   LOG_DIRECTORY_LABEL_KEY = 'xprofiler_log_directory'
   XPROFILER_VERSION_LABEL_KEY = 'xprofiler_version'
-  XPROFILER_VERSION = 'v0-0-10'
+  XPROFILER_VERSION = 'v0-0-11'
+  LOG_DIRECTORY_LABEL_KEY_N_SECTIONS = f'{LOG_DIRECTORY_LABEL_KEY}-n_sections'
 
   @dataclasses.dataclass(frozen=True)
   class Replacement:
@@ -49,10 +50,17 @@ class Command(abc.ABC):
     to: str
 
   # Default replacements for formatting strings
-  _DEFAULT_STRING_REPLACEMENTS: Sequence[Replacement] = (
+  DEFAULT_STRING_REPLACEMENTS: Sequence[Replacement] = (
       Replacement('gs://', ''),
-      Replacement('/', '--slash--'),
   )
+  LOG_DIRECTORY_STRING_REPLACEMENTS: Mapping[str, Sequence[Replacement]] = {
+      '0.0.10': (
+          Replacement('gs://', ''),
+          Replacement('/', '--slash--'),
+      ),
+      'default': DEFAULT_STRING_REPLACEMENTS,
+      'current': DEFAULT_STRING_REPLACEMENTS,
+  }
 
   # Default string reverse replacements
   _DEFAULT_STRING_REVERSE_REPLACEMENTS: Sequence[Replacement] = (
@@ -171,7 +179,7 @@ class Command(abc.ABC):
 
     return output
 
-  def _format_string_with_replacements(
+  def format_string_with_replacements(
       self,
       original_string: str,
       replacements: Sequence[Replacement],
@@ -201,7 +209,7 @@ class Command(abc.ABC):
 
     return original_string
 
-  def _format_label_string(
+  def format_label_string(
       self,
       labels: dict[str, str],
       replacements: Sequence[Replacement] | None = None,
@@ -232,10 +240,10 @@ class Command(abc.ABC):
     labels_string = ','.join(strings)
 
     # Use default replacements if not provided.
-    labels_string = self._format_string_with_replacements(
+    labels_string = self.format_string_with_replacements(
         original_string=labels_string,
         replacements=(
-            replacements if replacements else self._DEFAULT_STRING_REPLACEMENTS
+            replacements if replacements else self.DEFAULT_STRING_REPLACEMENTS
         ),
     )
 
