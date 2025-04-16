@@ -21,6 +21,8 @@ new instance using the `xprof create` command.
 
 import argparse
 from collections.abc import Mapping, Sequence
+import json
+
 from cloud_diagnostics_xprof.actions import action
 from cloud_diagnostics_xprof.actions import list_action
 
@@ -124,7 +126,7 @@ class Connect(action.Command):
     # Use the list action to get the VM name(s).
     list_command = list_action.List()
     list_args = argparse.Namespace(
-        zone=zone,
+        zones=[zone],
         log_directory=log_directories,
         filter=None,
         verbose=verbose,
@@ -136,15 +138,14 @@ class Connect(action.Command):
         verbose=verbose,
     )
     if verbose:
-      print(command_output)
+      print(f'VM name(s) from log directory: {command_output})')
 
-    vm_names = (
-        command_output
-        .strip()  # Removes the extra new line(s) that tends to be at the end.
-        .split('\n')[1:]  # Ignores header line.
-    )
-
-    vm_names = [vm_name.split()[2] for vm_name in vm_names]
+    # Parse the VM names from the output.
+    vm_names = [
+        vm_name
+        for vm_data in json.loads(command_output)
+        if (vm_name := vm_data.get('name'))
+    ]
 
     return vm_names
 
