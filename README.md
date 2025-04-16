@@ -16,9 +16,13 @@
 # xprofiler
 
 The `xprofiler` tool aims to simplify profiling experience for XLA workloads.
-It provides an abstraction over profile sessions and manages xprof hosting
-experience. This includes allowing users to create and manage VM instances that
+It provides an abstraction over profile sessions and manages
+[`xprof` hosting](https://github.com/openxla/xprof) experience.
+This includes allowing users to create and manage VM instances that
 are preprovisioned with TensorBoard and latest profiling tools.
+
+For more information about profiling with `xprof`, please see the `xprof`
+[documentation](https://github.com/openxla/xprof/blob/master/docs/).
 
 ## Quickstart
 
