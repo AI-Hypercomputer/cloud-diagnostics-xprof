@@ -39,10 +39,11 @@ _JAX_CAPTURE_COMMAND = (
     ' --no_perfetto_link'
 )
 _UPLOAD_PROFILE_COMMAND = (
-    'gsutil cp $(ls /tmp/tensorboard/{session_id}/plugins/profile/*/*xplane.pb|'
+    'gsutil cp $(ls tmp/tensorboard/{session_id}/plugins/profile/*/*xplane.pb|'
     ' tail -1)'
     ' {log_directory}/tensorboard/plugins/profile/session_{session_id}/{host}.xplane.pb'
 )
+
 _XPROFZ_ERROR_MESSAGE = (
     'No trace event was collected because there were no responses from clients'
 )
@@ -88,6 +89,15 @@ class Capture(action.Command):
         required=True,
         help='The GCP zone to the instance in for the profile capture.',
     )
+    # framework is optional.
+    capture_parser.add_argument(
+        '--orchestrator',
+        '-o',
+        metavar='ORCHESTRATOR',
+        choices=['gce', 'gke'],
+        default='gce',
+        help='The orchestrator where workload is running.',
+    )
     # hosts must be specified
     capture_parser.add_argument(
         '--hosts',
@@ -95,7 +105,10 @@ class Capture(action.Command):
         metavar='HOST_NAME',
         nargs='+',
         required=True,
-        help='The host name to capture a profile from.',
+        help=(
+            'The host name to capture a profile from.'
+            ' List of VM names for GCE and a list of pods for GKE.'
+        ),
     )
     # port is optional.
     capture_parser.add_argument(
@@ -155,7 +168,7 @@ class Capture(action.Command):
         args.zone,
         '--worker=all',
         '--command',
-        f'{args.command}',
+        args.command,
     ]
 
     if args.use_ssh_proxy:
@@ -166,25 +179,30 @@ class Capture(action.Command):
 
     return command
 
-  def _profile_single_host(
+  def _build_command_gke(self, args: argparse.Namespace) -> Sequence[str]:
+    command = [
+        'kubectl',
+        'exec',
+        args.host,
+        '--',
+        'bash',
+        '-c',
+        args.command,
+    ]
+    return command
+
+  def _profile_single_host_gce(
       self,
       session_id: str,
       host: str,
-      zone: str,
+      local_log_location: str,
       args: argparse.Namespace,
+      single_host_args: argparse.Namespace,
       extra_args: Mapping[str, str] | None = None,
       verbose: bool = False,
-  ) -> str:
+  ) -> list[Sequence[str]]:
     """Runs the profile script on a single host."""
-    print(f'Starting profile capture on host {host}.')
-    stdout_all = ''
-
     commands: list[Sequence[str]] = []
-    single_host_args = argparse.Namespace(**vars(args))
-    single_host_args.host = host
-    single_host_args.zone = zone
-    single_host_args.use_ssh_proxy = args.use_ssh_proxy
-    local_log_location = f'/tmp/tensorboard/{session_id}'
     # Framework is PyTorch.
     if args.framework == 'pytorch':
       # Command to download the capture profile script.
@@ -236,6 +254,89 @@ class Capture(action.Command):
             verbose=verbose,
         )
     )
+    return commands
+
+  def _profile_single_host_gke(
+      self,
+      session_id: str,
+      host: str,
+      local_log_location: str,
+      args: argparse.Namespace,
+      single_host_args: argparse.Namespace,
+  ) -> list[Sequence[str]]:
+    """Runs the profile script on a single host."""
+    commands: list[Sequence[str]] = []
+    # Framework is PyTorch.
+    if args.framework == 'pytorch':
+      # Command to download the capture profile script.
+      single_host_args.command = _DOWNLOAD_CAPTURE_PROFILE
+      commands.append(self._build_command_gke(single_host_args))
+      # Capture command (assuming script is already uploaded).
+      single_host_args.command = _PYTORCH_CAPTURE_COMMAND.format(
+          port=args.port,
+          duration=args.duration,
+          log_directory=local_log_location,
+      )
+      commands.append(self._build_command_gke(args=single_host_args))
+
+    # Framework is JAX.
+    if args.framework == 'jax':
+      # Local directory on remote host.
+      # Capture command, generates traces locally.
+      single_host_args.command = _JAX_CAPTURE_COMMAND.format(
+          port=args.port,
+          duration=args.duration,
+          log_directory=local_log_location,
+      )
+      commands.append(self._build_command_gke(args=single_host_args))
+
+    # Upload the profile to gs bucket.
+    single_host_args.command = _UPLOAD_PROFILE_COMMAND.format(
+        log_directory=args.log_directory,
+        session_id=session_id,
+        host=host,
+    )
+    commands.append(self._build_command_gke(args=single_host_args))
+    return commands
+
+  def _profile_single_host(
+      self,
+      session_id: str,
+      host: str,
+      zone: str,
+      args: argparse.Namespace,
+      extra_args: Mapping[str, str] | None = None,
+      verbose: bool = False,
+  ) -> str:
+    """Runs the profile script on a single host."""
+    print(f'Starting profile capture on host {host}.')
+    stdout_all = ''
+
+    commands: list[Sequence[str]] = []
+    single_host_args = argparse.Namespace(**vars(args))
+    single_host_args.host = host
+    single_host_args.zone = zone
+    single_host_args.use_ssh_proxy = args.use_ssh_proxy
+    local_log_location = f'tmp/tensorboard/{session_id}'
+
+    if args.orchestrator == 'gce':
+      commands = self._profile_single_host_gce(
+          session_id=session_id,
+          host=host,
+          local_log_location=local_log_location,
+          args=args,
+          single_host_args=single_host_args,
+          extra_args=extra_args,
+          verbose=verbose,
+      )
+    elif args.orchestrator == 'gke':
+      commands = self._profile_single_host_gke(
+          session_id=session_id,
+          host=host,
+          local_log_location=local_log_location,
+          args=args,
+          single_host_args=single_host_args,
+      )
 
     # Run all commands.
     try:
@@ -297,13 +398,14 @@ class Capture(action.Command):
     ):
       raise ValueError(f'Log directory {args.log_directory} does not exist.')
 
-    for host in args.hosts:
-      if not self._host_exists(
-          host_name=host,
-          zone=args.zone,
-          verbose=verbose,
-      ):
-        raise ValueError(f'Host {host} does not exist.')
+    if args.orchestrator == 'gce':
+      for host in args.hosts:
+        if not self._host_exists(
+            host_name=host,
+            zone=args.zone,
+            verbose=verbose,
+        ):
+          raise ValueError(f'Host {host} does not exist.')
 
   def run(
       self,
