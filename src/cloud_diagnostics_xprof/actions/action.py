@@ -41,7 +41,7 @@ class Command(abc.ABC):
   )
   LOG_DIRECTORY_LABEL_KEY = 'xprofiler_log_directory'
   XPROFILER_VERSION_LABEL_KEY = 'xprofiler_version'
-  XPROFILER_VERSION = 'v0-0-11'
+  XPROFILER_VERSION = 'v0-0-12'
   LOG_DIRECTORY_LABEL_KEY_N_SECTIONS = f'{LOG_DIRECTORY_LABEL_KEY}-n_sections'
 
   @dataclasses.dataclass(frozen=True)
