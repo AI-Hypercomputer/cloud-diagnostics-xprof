@@ -140,9 +140,9 @@ docker run -d \
 \"\${CONTAINER_URL}\" &
 echo \"Setting endpoint info in metadata.\"
 # Show command to user.
-echo \"command to run to set labels:\n\"
-echo \"gcloud compute instances add-labels {MY_INSTANCE_NAME} --zone={ZONE} --labels {TB_BACKEND_LABEL}=\"\${BACKEND_ID}\"
+# Label set regardless of BACKEND_ID value.
 gcloud compute instances add-labels {MY_INSTANCE_NAME} --zone={ZONE} --labels {TB_BACKEND_LABEL}=\"\${BACKEND_ID}\"
+echo \"Labeled VM with key: `{TB_BACKEND_LABEL}`.\"
 echo \"Startup Finished\"
 """
 
