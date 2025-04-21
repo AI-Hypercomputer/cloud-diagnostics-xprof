@@ -222,6 +222,13 @@ class Create(action.Command):
         default='c4-highmem-8',
     )
     create_parser.add_argument(
+        '--auto-delete-on-failure-off',
+        action='store_true',
+        help=(
+            'Will not delete the VM if failure occurs.'
+        ),
+    )
+    create_parser.add_argument(
         '--verbose',
         '-v',
         action='store_true',
@@ -548,7 +555,7 @@ class Create(action.Command):
               ZONE=args.zone,
           )
       )
-    else:  # Setup failed so delete the VM (if created).
+    else:  # Setup failed; perform any cleanup.
       print(
           'Timed out waiting for instance to be set up.\n'
       )
@@ -565,12 +572,33 @@ class Create(action.Command):
         else:
           print(f'TensorBoard backend ID was not set. `{backend_id_value=}`')
 
-      # Delete the VM that was created.
-      _ = self._delete_vm(
-          vm_name=self.vm_name,
-          zone=args.zone,
-          verbose=verbose,
-      )
+      # Delete the VM that was created unless user specified otherwise.
+      if args.auto_delete_on_failure_off:
+        if verbose:
+          print('Not deleting VM since user specified to not delete.')
+        # Warn the user regardless of verbose setting.
+        print(
+            'Failure in setting up VM.\n'
+            'Note that the VM was NOT deleted and may be in a bad state'
+            ' and/or unstable.\n'
+        )
+        print(
+            _OUTPUT_MESSAGE.format(
+                LOG_DIRECTORY=args.log_directory,
+                BACKEND_ID=backend_id,
+                REGION='-'.join(args.zone.split('-')[:-1]),
+                VM_NAME=self.vm_name,
+                ZONE=args.zone,
+            )
+        )
+      else:
+        if verbose:
+          print('Deleting VM that was created.')
+        _ = self._delete_vm(
+            vm_name=self.vm_name,
+            zone=args.zone,
+            verbose=verbose,
+        )
 
     return stdout
 
