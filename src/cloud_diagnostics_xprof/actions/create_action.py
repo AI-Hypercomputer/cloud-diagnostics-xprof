@@ -97,25 +97,36 @@ gcloud storage cp gs://dl-platform-public-configs/proxy-agent-config.json .
 # Get proxy URL for this region
 echo \"Get proxy URL for this region.\"
 PROXY_URL=\$(python3 -c \"import json; import sys; data=json.load(sys.stdin); print(data['agent-docker-containers']['latest']['proxy-urls']['{REGION}'][0])\" < proxy-agent-config.json)
+echo -e \"PROXY_URL:\"
+echo -e \"PROXY_URL: \${PROXY_URL}\"
 # Get VM ID for this proxy url
 echo \"Get VM ID for this proxy url.\"
 VM_ID=\$(curl -H 'Metadata-Flavor: Google' \"http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?format=full&audience=${PROXY_URL}/request-endpoint\"  2>/dev/null)
+echo -e \"VM_ID:\"
+echo -e \"\${VM_ID}\"
 # Generate backend and host id
 echo \"Generate backend and host id.\"
 RESULT_JSON=\$(curl -H \"Authorization: Bearer \$(gcloud auth print-access-token)\" -H \"X-Inverting-Proxy-VM-ID: \${VM_ID}\" -d \"\" \"\${PROXY_URL}/request-endpoint\" 2>/dev/null)
+echo -e \"RESULT_JSON:\"
 echo -e \"\${RESULT_JSON}\"
 # Extract backend id from response
 echo \"Extract backend id from response.\"
 BACKEND_ID=\$(python3 -c \"import json; import sys; data=json.loads(sys.argv[1]); print(data['backendID'])\" \"\${RESULT_JSON}\")
+echo -e \"BACKEND_ID:\"
 echo -e \"\${BACKEND_ID}\"
 # Extract hostname from response
 echo \"Extract hostname from response.\"
 HOSTNAME=\$(python3 -c \"import json; import sys; data=json.loads(sys.argv[1]); print(data['hostname'])\" \"\${RESULT_JSON}\")
+echo -e \"HOSTNAME:\"
 echo -e \"\${HOSTNAME}\"
 # Set container name
 CONTAINER_NAME='proxy-agent'
+echo -e \"CONTAINER_NAME:\"
+echo -e \"\${CONTAINER_NAME}\"
 # Set URL for agent container
 CONTAINER_URL='gcr.io/inverting-proxy/agent:latest'
+echo -e \"CONTAINER_URL:\"
+echo -e \"\${CONTAINER_URL}\"
 # Start agent container
 docker run -d \
 --env \"BACKEND=\${BACKEND_ID}\" \
@@ -128,6 +139,9 @@ docker run -d \
 --name \"\${CONTAINER_NAME}\" \
 \"\${CONTAINER_URL}\" &
 echo \"Setting endpoint info in metadata.\"
+# Show command to user.
+echo \"command to run to set labels:\n\"
+echo \"gcloud compute instances add-labels {MY_INSTANCE_NAME} --zone={ZONE} --labels {TB_BACKEND_LABEL}=\"\${BACKEND_ID}\"
 gcloud compute instances add-labels {MY_INSTANCE_NAME} --zone={ZONE} --labels {TB_BACKEND_LABEL}=\"\${BACKEND_ID}\"
 echo \"Startup Finished\"
 """
