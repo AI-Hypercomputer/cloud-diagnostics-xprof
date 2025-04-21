@@ -492,6 +492,7 @@ class Create(action.Command):
     print('Waiting for instance to be created. It can take a few minutes.')
     has_tb_backend_id = False
     backend_id: str | None = None
+    vm_labels_final_values: dict[str, str | None] = {}
     while timer < _MAX_WAIT_TIME_IN_SECONDS:
       time.sleep(_WAIT_TIME_IN_SECONDS)
       timer += _WAIT_TIME_IN_SECONDS
@@ -504,11 +505,22 @@ class Create(action.Command):
       vm_labels = json_output.get('labels', {})
       if verbose:
         print(f'JSON labels: \n{vm_labels}')
+
+      # Store the latest values of the labels.
+      vm_labels_final_values[_TB_LAUNCHED_LABEL] = vm_labels.get(
+          _TB_LAUNCHED_LABEL
+      )
+      vm_labels_final_values[_TB_BACKEND_LABEL] = vm_labels.get(
+          _TB_BACKEND_LABEL
+      )
+
+      # Must have both labels & backend id must have a value.
       has_tb_backend_id = (
           vm_labels
-          and (_TB_LAUNCHED_LABEL in vm_labels.keys())
-          and (_TB_BACKEND_LABEL in vm_labels.keys())
+          and vm_labels_final_values[_TB_LAUNCHED_LABEL]
+          and vm_labels_final_values[_TB_BACKEND_LABEL]
       )
+
       if verbose:
         print(f'{has_tb_backend_id=}')
 
@@ -540,6 +552,18 @@ class Create(action.Command):
       print(
           'Timed out waiting for instance to be set up.\n'
       )
+
+      # Print out specific failure (if any that can be enumerated).
+      if verbose:
+        print('Final label values:')
+        for label, value in vm_labels_final_values.items():
+          print(f'{label}={value}')
+        # Specifically check if the backend id is not set.
+        backend_id_value = vm_labels_final_values.get(_TB_BACKEND_LABEL)
+        if backend_id_value:
+          print(f'TensorBoard backend ID was set to `{backend_id_value=}`')
+        else:
+          print(f'TensorBoard backend ID was not set. `{backend_id_value=}`')
 
       # Delete the VM that was created.
       _ = self._delete_vm(
