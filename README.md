@@ -438,6 +438,24 @@ xprofiler list
 
 This provides the basic usage guide for the `xprofiler list` subcommand.
 
+#### `xprofiler list --zones`
+
+The `list` subcommand can optionally take a `-z (--zones)` flag to specify which
+zones to consider for listing VMs.
+
+```bash
+# Listing all xprofiler VMs in us-central1-a
+xprofiler list -z us-central1-a
+
+# Listing all xprofiler VMs in us-east5-a and us-central1-a
+xprofiler list -z us-east5-a us-central1-a
+```
+
+If no value for the zones is provided, then `xprofiler list` will search across
+all zones with any other matching criteria in mind. This however, can
+potentially take significantly more time so it is recommended to specify the
+zone(s) explicitly.
+
 #### Optionally specifying log directories and/or VM names
 
 Users optionally can specify one or more log directories (GCS paths) and/or VM
