@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A list command implementation for the xprof CLI.
+"""A list command implementation for the xprofiler CLI.
 
-This command is used as part of the xprof CLI to list xprofiler
+This command is used as part of the xprofiler CLI to list xprofiler
 instances. The intention is that this can be used after creation of instances
-using the `xprof create` command.
+using the `xprofiler create` command.
 """
 
 import argparse
@@ -67,6 +67,13 @@ class List(action.Command):
         nargs='+',  # Allow multiple log directories
         metavar='GS_PATH',
         help='The GCS path to the log directory associated with the instance.',
+    )
+    list_parser.add_argument(
+        '--vm-name',
+        '-n',
+        nargs='+',  # Allow multiple VM names
+        metavar='VM_NAME',
+        help='The name of the VM to list.',
     )
     # Uses key=value format to allow for multiple values
     # e.g. --filter=name=vm1 --filter=name=vm2
@@ -311,78 +318,91 @@ class List(action.Command):
       print(f'Command to run: {command}')
 
     stdout: str = self._run_command(command, verbose=verbose)
-    output_data = json.loads(stdout)
+    vm_candidates = json.loads(stdout)
 
     vm_matches = []
 
     # Filter the output based on user provided filters.
     # This is an alternative to using gcloud's `--filter` flag to allow for
     # filtering on multiple keys. (Appears to be a bug in gcloud.)
-    if args.log_directory:
+    if args.log_directory or args.vm_name:
       # Assume the old version is 0.0.10.
       old_version_replacements = self.LOG_DIRECTORY_STRING_REPLACEMENTS.get(
           '0.0.10',
           self.DEFAULT_STRING_REPLACEMENTS,
       )
-      # Assume thecurrent version is default (can be confirm xprofiler version).
+      # Assume current version is default (can confirm xprofiler version).
       current_version_replacements = self.DEFAULT_STRING_REPLACEMENTS
 
-      for log_directory in args.log_directory:
-        if verbose:
-          print(f'Checking for {log_directory=}')
-        # Format the log directory string for the old version labeling.
-        log_dir_str_old_version = self.format_string_with_replacements(
-            log_directory,
-            old_version_replacements,
+      # Check each VM against the user provided criteria.
+      for vm in vm_candidates:
+        # New method: log directory found in metadata.
+        vm_log_dir_metadata = (
+            vm
+            .get('metadata', {})
+            .get('items', [])
         )
-        if verbose:
-          print(
-              f'Log directory string (old version): {log_dir_str_old_version=}'
-          )
-        # Format the log directory string for the new version labeling.
-        # Add gs:// prefix back to search with.
-        log_dir_str = 'gs://' + self.format_string_with_replacements(
-            original_string=log_directory,
-            replacements=current_version_replacements,
+        # Old method: log directory formatted string matches label.
+        vm_log_dir_label = (
+            vm
+            .get('labels', {})
+            .get(self.LOG_DIRECTORY_LABEL_KEY)
         )
-        if verbose:
-          print(f'Log directory string: {log_dir_str=}')
-        # Remove VM from list but use for final output if matches.
-        found_vm: bool = False
-        for vm in output_data:
-          # New method: log directory found in metadata.
-          vm_log_dir_metadata = (
-              vm
-              .get('metadata', {})
-              .get('items', [])
+
+        # Check if VM matches any name given.
+        if args.vm_name and (vm.get('name') in args.vm_name):
+          vm_matches.append(vm)
+          if verbose:
+            print(
+                f'Found VM match via name'
+                f': {vm.get("name")}'
+            )
+          # Stop checking criteria since VM should be included.
+          continue
+
+        # Check if VM matches any log directory given.
+        for log_directory in (args.log_directory if args.log_directory else []):
+          if verbose:
+            print(f'Checking for {log_directory=}')
+          # Format the log directory string for the old version labeling.
+          log_dir_str_old_version = self.format_string_with_replacements(
+              log_directory,
+              old_version_replacements,
           )
-          # Old method: log directory formatted string matches label.
-          vm_log_dir_label = (
-              vm
-              .get('labels', {})
-              .get(self.LOG_DIRECTORY_LABEL_KEY)
+          if verbose:
+            print(
+                'Log directory string (old version):'
+                f' {log_dir_str_old_version=}'
+            )
+          # Format the log directory string for the new version labeling.
+          # Add gs:// prefix back to search with.
+          log_dir_str = 'gs://' + self.format_string_with_replacements(
+              original_string=log_directory,
+              replacements=current_version_replacements,
           )
+          if verbose:
+            print(f'Log directory string: {log_dir_str=}')
           # Check if string within the list
           if log_dir_str in vm_log_dir_metadata:
-            found_vm = True
+            vm_matches.append(vm)
             if verbose:
               print(
                   f'Found VM match via metadata for {log_directory}'
                   f': {vm.get("name")}'
               )
+              # Stop checking criteria since VM should be included.
+            break
           elif log_dir_str_old_version == vm_log_dir_label:
-            found_vm = True
+            vm_matches.append(vm)
             if verbose:
               print(
                   f'Found VM match via labels for {log_directory}'
                   f': {vm.get("name")}'
               )
-          if found_vm:
-            vm_matches.append(vm)
-            # Keep checking in case there are other VMs with same log directory.
-            found_vm = False
+              # Stop checking criteria since VM should be included.
+            break
     else:  # No log directory provided, so just use the output as is.
-      vm_matches = output_data
+      vm_matches = vm_candidates
 
     # Creates a string of JSON for the display method to handle.
     result_str = json.dumps(vm_matches)

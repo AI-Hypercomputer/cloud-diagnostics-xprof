@@ -128,6 +128,7 @@ class Connect(action.Command):
     list_args = argparse.Namespace(
         zones=[zone],
         log_directory=log_directories,
+        vm_name=None,
         filter=None,
         verbose=verbose,
     )

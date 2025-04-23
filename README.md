@@ -180,13 +180,14 @@ xprofiler instance can be accessed at http://localhost:6006.
 ### List `xprofiler` Instances
 
 To list the `xprofiler` instances, you will need to specify a zone. Users can
-optionally provide bucket information.
+optionally provide bucket information and/or VM instance names.
 
 ```bash
 ZONE=us-central1-a
 
 xprofiler list -z $ZONE
 ```
+
 > Note: The `-z (--zones)` flag is not required but is highly recommended.
 > If a zone is not provided, the command can take longer to search for all
 > relevant VM instances.
@@ -201,10 +202,18 @@ gs://<some-bucket>/<some-run>/tensorboard  https://<id>-dot-us-<region>.notebook
 gs://<some-bucket>/<some-run>/tensorboard  https://<id>-dot-us-<region>.notebooks.googleusercontent.com         xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  <zone>
 ```
 
-Note you can specify the GCS bucket to get just that one associated instance:
+Note you can specify one or more GCS bucket paths and/or VM instance names to
+get any VMs associated with the criteria provided. This will list any VMs
+associated with the log directories or VM names specified.
+(See [section](#optionally-specifying-log-directories-andor-vm-names) below for
+more details.)
 
 ```bash
+# Specifying one GCS path
 xprofiler list -z $ZONE -l $GCS_PATH
+
+# Specifying one VM instance name
+xprofiler list -z $ZONE --vm-name $VM_NAME
 ```
 
 ### Delete `xprofiler` Instance
@@ -420,6 +429,7 @@ xprofiler list
   [--help]
   [--zones ZONE_NAME [ZONE_NAME ...]]
   [--log-directory GS_PATH [GS_PATH ...]]
+  [--vm-name VM_NAME [VM_NAME ...]]
   [--filter FILTER_NAME [FILTER_NAME ...]]
   [--verbose]
 ```
@@ -427,6 +437,31 @@ xprofiler list
 #### `xprofiler list --help`
 
 This provides the basic usage guide for the `xprofiler list` subcommand.
+
+#### Optionally specifying log directories and/or VM names
+
+Users optionally can specify one or more log directories (GCS paths) and/or VM
+names. This can be done with the `-l (--log-directory)` flag for log directories
+and with the `-n (--vm-name)` flag for VM instance names.
+
+When specifying multiple criteria, any matching VM will be listed.
+
+Examples:
+
+```bash
+# List VMs that match either GCS path
+xprofiler list -l gs://bucket0/top-dir gs://bucket1/top-dir
+
+
+# List VMs that match either VM name
+xprofiler list -n my-vm-one my-vm-two
+
+
+# List VMs that match any of the GCS paths or VM names
+xprofiler list \
+  -l gs://bucket0/top-dir gs://bucket1/top-dir \
+  -n my-vm-one my-vm-two
+```
 
 ### Subcommand: `xprofiler delete`
 

@@ -112,6 +112,7 @@ class Delete(action.Command):
     list_args = argparse.Namespace(
         zones=[zone],
         log_directory=log_directories,
+        vm_name=None,
         filter=None,
         verbose=verbose,
     )
@@ -163,6 +164,7 @@ class Delete(action.Command):
     list_args = argparse.Namespace(
         log_directory=None,
         zones=[zone],
+        vm_name=None,
         filter=filter_args,
         verbose=verbose,
     )

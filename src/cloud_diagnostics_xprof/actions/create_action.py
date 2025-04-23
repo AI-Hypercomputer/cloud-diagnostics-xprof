@@ -444,6 +444,7 @@ class Create(action.Command):
         log_directory=[
             args.log_directory,  # Ensure this is treated as one item.
         ],
+        vm_name=None,
         filter=None,
         verbose=verbose,
     )
