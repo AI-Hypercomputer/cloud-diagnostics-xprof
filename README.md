@@ -79,9 +79,10 @@ in a bucket. This allows visualization of multiple profiling sessions using the
 same `xprofiler` instance.
 
 * For xprofiler capture command, use `gs://<bucket-name>/<run-name>` pattern.
-* All files will be stored in `gs://<bucket-name>/<run-name>/tensorboard/plugin/profile/<session_id>`.
-* For `xprofiler create` command, use `gs://<bucket-name>/<run-name>/tensorboard`
-  pattern.
+* All files will be stored in
+  `gs://<bucket-name>/<run-name>/tensorboard/plugin/profile/<session_id>`.
+* For `xprofiler create` command, use
+  `gs://<bucket-name>/<run-name>/tensorboard` pattern.
 
 #### Examples of proper and improper GCS paths:
 
@@ -155,6 +156,7 @@ Instance is hosted at xprof-<uuid> VM.
 ### Open `xprofiler` Instance
 
 ##### Using Proxy (Only supports small captures, less than 10sec)
+
 Users can open created instances using the link from create output. This path
 relies on a reverse proxy to expose the xprofiler backend. Users must have
 valid IAM permissions.
@@ -168,7 +170,7 @@ Users can connect to an instance by specifying a log_directory.
 * Connect uses an SSH tunnel and users can open a localhost url from their
 browsers.
 
->Note: `-z (--zone)` and `-l (--log_directory)` are mandatory arguments.
+> Note: `-z (--zone)` and `-l (--log_directory)` are mandatory arguments.
 
 ```
 xprofiler connect -z $ZONE -l $GCS_PATH -m ssh
@@ -244,80 +246,102 @@ xprofiler delete -z $ZONE --vm-name $VM_NAME
 
 Users can capture profiles programmatically or manually.
 
-##### Prerequisite - Enable collector
+##### Prerequisite: Enable collector
 Users are required to enable the collector from their workloads following below
 steps.
 > Note: This is needed for both Programmatic and Manual captures.
 
-```
-# To enable from a jax workload
+```python
+# To enable for a jax workload
 import jax
 jax.profiler.start_server(9012)
 
-# To enable from a pytorch workload
+# To enable for a pytorch workload
 import torch_xla.debug.profiler as xp
 server = xp.start_server(9012)
 
-# To enable for tensorflow
+# To enable for tensorflow workload
 import tensorflow.compat.v2 as tf2
 tf2.profiler.experimental.server.start(9012)
 ```
 
-Below links have some more information about the individual frameworks.
+Below links have some more information about the individual frameworks:
 
-* [jax](https://docs.jax.dev/en/latest/profiling.html#manual-capture)
-* [pytorch](https://cloud.google.com/tpu/docs/pytorch-xla-performance-profiling-tpu-vm#starting_the_profile_server)
+* [JAX](https://docs.jax.dev/en/latest/profiling.html#manual-capture)
+* [PyTorch](https://cloud.google.com/tpu/docs/pytorch-xla-performance-profiling-tpu-vm#starting_the_profile_server)
 
 ##### Programmatic profile capture
+
 Users can capture traces from their workloads by marking their code paths.
-programmatic capture is more deterministic and gives more control to users.
+Programmatic capture is more deterministic and gives more control to users.
+
+> NOTE: The code snippets below assume that code in the earlier
+> [prerequisite section](#prerequisite-enable-collector)
+
+###### JAX profile capture
 
 ```python
-# jax
 jax.profiler.start_trace("gs://<some_bucket>/<some_run>")
 # Code to profile
-#……….
+...
 jax.profiler.stop_trace()
+```
 
-# pytorch
+###### PyTorch profile capture
+
+```python
 xp.trace_detached(f"localhost:{9012}", "gs://<some_bucket>/<some_run>", duration_ms=2000)
+
 # Using StepTrace
 for step, (input, label) in enumerate(loader):
-    with xp.StepTrace('train_step', step_num=step):
-         # code to trace
+  with xp.StepTrace('train_step', step_num=step):
+    # code to trace
+    ...
+```
 
+Alternatively, wrap individual parts of the code with `xp.Trace`:
+
+```python
 # Using Trace
 with xp.Trace('fwd_context'):
     # code to trace
+    ...
+```
 
-# TensorFlow
+###### TensorFlow profile capture
+
+```python
 tf.profiler.experimental.start("gs://<some_bucket>/<some_run>")
 for step in range(num_steps):
-  # Creates a trace event for each training step with the
-  # step number.
+  # Creates a trace event for each training step with the step number
   with tf.profiler.experimental.Trace("Train", step_num=step):
     train_fn()
 tf.profiler.experimental.stop()
 ```
 
 ##### Manual profile capture
-Users can trigger profile capture on target hosts using capture command.
+
+Users can also trigger profile capture on target hosts using the 
+`xprofiler capture` command.
 
 ###### GCE
 
-* For jax, SDK requires tensorboard_plugin_profile package and the same must be
-available on target VMs.
-> Note: xprofiler uses gsutil to move files to GCS bucket from target VM. VMs
-must have gcloud pre-installed.
+For JAX, `xprofiler` requires the
+[tensorboard-plugin-profile](https://pypi.org/project/tensorboard-plugin-profile)
+package and must also be available on target VMs.
+
+> Note: `xprofiler` uses `gsutil` to move files to GCS bucket from target VM.
+> VMs must have `gcloud` pre-installed.
 
 ```bash
 # Trigger capture profile
+# Framework can be jax or pytorch
 xprofiler capture \
--z <zone> \
--l gs://<some-bucket>/<some-run> \
--f jax \ # jax or pytorch
--n vm_name1 vm_name2 vm_name3 \
--d 2000 # duration in ms
+  -z <zone> \
+  -l gs://<some-bucket>/<some-run> \
+  -f jax \
+  -n vm_name1 vm_name2 vm_name3 \
+  -d 2000 # duration in ms
 
 Starting profile capture on host vm_name1.
 Profile saved to gs://<some-bucket>/<some-run>/tensorboard and session id is session_2025_04_03_18_13_49.
@@ -328,47 +352,41 @@ Profile saved to gs://<some-bucket>/<some-run>/tensorboard and session id is ses
 
 ###### GKE
 
-For GKE, Users are required to setup kubectl and cluster context on their
-machines.
-
-* Setup [kubectl](https://cloud.google.com/kubernetes-engine/docs/how-to/cluster-access-for-kubectl).
-
-* Set current cluster context.
+For GKE, users are required to setup `kubectl` and cluster context on their
+machines. (See details on setting up
+[kubectl](https://cloud.google.com/kubernetes-engine/docs/how-to/cluster-access-for-kubectl).)
 
 ```bash
 gcloud container clusters get-credentials <cluster_name> --region=<region>
 ```
 
-subsequently, users can validate if current context is setup properly.
+After setting up credentials, users can verify the current context:
 
 ```bash
 kubectl config current-context
 gke_<project_id>_<region>_<cluster_name>
 ```
 
-* Users can get a mapping between pods and nodes using `kubectl get pods`
-command. For GKE, We can pass a list of pods to `xprofiler capture` command to
-initiate profile capture.
+Users can then get a mapping between pods and nodes using the `kubectl get pods`
+command:
 
 ```bash
 $ kubectl get pods -o wide| awk '{print $1"\t\t"$7}'
 ```
 
-> Note:For jax, SDK requires tensorboard_plugin_profile package and the same
-must be available on target Pods.
-
-> Note: Xprofiler uses gsutil to move files to GCS bucket from pod. Container
-image must have gcloud pre-installed.
+For GKE, users can then pass a list of pods to `xprofiler capture` command to
+initiate profile capture.
 
 ```bash
 # Trigger capture profile
+# Framework can be jax or pytorch
 xprofiler capture \
--z <zone> \
--o gke \
--l gs://<some-bucket>/<some-run> \
--f jax \ # jax or pytorch \
--n pod_1 pod_2 pod_3 \
--d 2000 # duration in ms
+  -z <zone> \
+  -o gke \
+  -l gs://<some-bucket>/<some-run> \
+  -f jax
+  -n pod_1 pod_2 pod_3 \
+  -d 2000 # duration in ms
 
 Starting profile capture on pod_1.
 Profile saved to gs://<some-bucket>/<some-run>/tensorboard and session id is session_2025_04_03_18_13_49.
@@ -376,6 +394,13 @@ Profile saved to gs://<some-bucket>/<some-run>/tensorboard and session id is ses
 Starting profile capture on pod_2.
 Profile saved to gs://<some-bucket>/<some-run>/tensorboard and session id is session_2025_04_03_18_13_49.
 ```
+
+> Note: For JAX, `xprofiler` requires the
+> [`tensorboard-plugin-profile`](https://pypi.org/project/tensorboard-plugin-profile)
+> package, as well as being available on target Pods.
+
+> Note: `xprofiler` uses `gsutil` to move files to GCS bucket from pod.
+> Container image must have `gcloud` pre-installed.
 
 ## Details on `xprofiler`
 
@@ -394,7 +419,7 @@ invoking a subcommand.
 Gives additional information about using the command including flag options and
 available subcommands. Also can be called with `xprofiler -h`.
 
-> Note: that each subcommand has a `-h (--help)` flag that can give information
+> Note: Each subcommand has a `-h (--help)` flag that can give information
 about that specific subcommand. For example: `xprofiler list -h`
 
 ### Subcommand: `xprofiler create`
