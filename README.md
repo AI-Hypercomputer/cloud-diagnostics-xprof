@@ -246,7 +246,8 @@ xprofiler delete -z $ZONE --vm-name $VM_NAME
 
 Users can capture profiles programmatically or manually.
 
-##### Prerequisite: Enable collector
+##### Prerequisite: Enable Collector
+
 Users are required to enable the collector from their workloads following below
 steps.
 > Note: This is needed for both Programmatic and Manual captures.
@@ -270,15 +271,15 @@ Below links have some more information about the individual frameworks:
 * [JAX](https://docs.jax.dev/en/latest/profiling.html#manual-capture)
 * [PyTorch](https://cloud.google.com/tpu/docs/pytorch-xla-performance-profiling-tpu-vm#starting_the_profile_server)
 
-##### Programmatic profile capture
+##### Programmatic Profile Capture
 
 Users can capture traces from their workloads by marking their code paths.
 Programmatic capture is more deterministic and gives more control to users.
 
-> NOTE: The code snippets below assume that code in the earlier
+> Note: The code snippets below assume that code in the earlier
 > [prerequisite section](#prerequisite-enable-collector)
 
-###### JAX profile capture
+###### JAX Profile Capture
 
 ```python
 jax.profiler.start_trace("gs://<some_bucket>/<some_run>")
@@ -287,7 +288,7 @@ jax.profiler.start_trace("gs://<some_bucket>/<some_run>")
 jax.profiler.stop_trace()
 ```
 
-###### PyTorch profile capture
+###### PyTorch Profile Capture
 
 ```python
 xp.trace_detached(f"localhost:{9012}", "gs://<some_bucket>/<some_run>", duration_ms=2000)
@@ -308,7 +309,7 @@ with xp.Trace('fwd_context'):
     ...
 ```
 
-###### TensorFlow profile capture
+###### TensorFlow Profile Capture
 
 ```python
 tf.profiler.experimental.start("gs://<some_bucket>/<some_run>")
@@ -319,12 +320,121 @@ for step in range(num_steps):
 tf.profiler.experimental.stop()
 ```
 
-##### Manual profile capture
+##### Manual Profile Capture
 
-Users can also trigger profile capture on target hosts using the 
-`xprofiler capture` command.
+Users can also trigger profile capture on target hosts. There are two methods to
+do this:
 
-###### GCE
+* Using the `xprofiler capture` command
+  - For [GCE](#profile-capture-via-xprofiler-gce) workloads
+  - For [GKE](#profile-capture-via-xprofiler-gke) workloads
+* Using [TensorBoard's UI](#profile-capture-via-tensorboard-ui)
+
+###### Profile Capture via TensorBoard UI
+
+Users have the option to trigger a profile capture using TensorBoard's UI.
+
+First, visit the proxy URL for a VM instance (created via `xprofiler`) to visit
+the TensorBoard UI. Which will bring you to one of two pages.
+
+**Scenario 1: GCS Has Profile Data**
+
+If the GCS log directory associated with the VM instance has profile data
+already available, you'll likely see a page similar to this with profile runs
+ready to view:
+
+![TensorBoard UI on profile tab](https://raw.githubusercontent.com/AI-Hypercomputer/cloud-diagnostics-xprof/refs/heads/main/docs/images/tensorboard-ui-profile-tab-with-profiles.png)
+
+Notice the "CAPTURE PROFILE" button on the dashboard. You'll want to click that
+& proceed with the next section on completing this form to capture profile data.
+
+**Scenario 2: GCS Has No Profile Data**
+
+You may see a similar page to this one with no dashboards if the GCS log
+directory does not yet have any profile data:
+
+![TensorBoard UI that is blank with message on dashboards](https://raw.githubusercontent.com/AI-Hypercomputer/cloud-diagnostics-xprof/refs/heads/main/docs/images/tensorboard-ui-with-no-profiles.png)
+
+You will then need to select the profile tab:
+
+![TensorBoard UI with upper-right dropdown menu selecting "Profile"](https://raw.githubusercontent.com/AI-Hypercomputer/cloud-diagnostics-xprof/refs/heads/main/docs/images/tensorboard-ui-with-no-profiles-dropdown-on-profile.png)
+
+You'll then see a page similar to this one with a "CAPTURE PROFILE" button:
+
+![TensorBoard UI that is blank with message on profiling](https://raw.githubusercontent.com/AI-Hypercomputer/cloud-diagnostics-xprof/refs/heads/main/docs/images/tensorboard-ui-profile-tab-with-profiles.png)
+
+You want to click the "CAPTURE PROFILE" button which will bring up a form to
+fill. Proceed to the next section for details in completing this form to capture
+profile data.
+
+**Completing Form for Profile Capture**
+
+In either case from above, you should see a similar form to fill to capture
+profile data:
+
+![Incomplete form for TensorBoard UI profile capture](https://raw.githubusercontent.com/AI-Hypercomputer/cloud-diagnostics-xprof/refs/heads/main/docs/images/tensorboard-ui-capture-profile-form-incomplete.png)
+
+You will need to minimally provide the "Profile Service URL(s)" for the TPU VM
+instance.
+
+> Note:
+> The instructions refer to the TPU VM that is _running_ the workload to
+> profile and ***NOT*** the `xprofiler` VM instance.
+
+You will need the full hostname for the TPU & port number
+with the following format:
+
+```
+<TPU_VM_HOSTNAME>.<ZONE>.c.<GCP_PROJECT_NAME>.internal:<PORT_NUMBER>
+```
+
+* `TPU_VM_HOSTNAME`: This is different from the TPU name and refers to the host
+  that the workload is running on.
+  You can retrieve the hostname using `gcloud` by providing the TPU VM name and
+  TPU's the zone:
+  `gcloud compute tpus tpu-vm ssh $TPU_NAME  --zone=$ZONE --command="hostname"`
+* `ZONE`: This is the zone of the TPU VM. Note that it is ***NOT** necessarily
+  the same as the `xprofiler` VM instance that is displaying TensorBoard.
+* `GCP_PROJECT_NAME`: This is the project name for the TPU VM.
+  Note that it is ***NOT** necessarily the same as the `xprofiler` VM instance
+  that is displaying TensorBoard. However, it likely will need to be since
+  having the TPU in a different project will likely lead to permission issues,
+  preventing profile capture.
+* `PORT_NUMBER`: This is the port that was set when starting the profile server
+  in the relevant code.
+  See earlier [prerequisite section](#prerequisite-enable-collector).
+
+For example, your string will look similar to this:
+
+```
+t1v-n-g8675e3i-w-0.us-east5-b.c.my-project.internal:9012
+```
+
+You can then adjust any of the other settings you care to modify and click
+"CAPTURE".
+
+![Complete form for TensorBoard UI profile capture](https://raw.githubusercontent.com/AI-Hypercomputer/cloud-diagnostics-xprof/refs/heads/main/docs/images/tensorboard-ui-capture-profile-form-complete.png)
+
+You will see a loading animation and then a message at the bottom of the screen.
+
+If successful, you will see a message similar to this:
+
+![Successful capture for TensorBoard UI profile capture](https://raw.githubusercontent.com/AI-Hypercomputer/cloud-diagnostics-xprof/refs/heads/main/docs/images/tensorboard-ui-capture-profile-message-success.png)
+
+If something went wrong you might see something similar to this:
+
+![Failed capture for TensorBoard UI profile capture](https://raw.githubusercontent.com/AI-Hypercomputer/cloud-diagnostics-xprof/refs/heads/main/docs/images/tensorboard-ui-capture-profile-message-failure.png)
+
+You can attempt the capture again, ensuring your settings in the form are
+correct. You may also need to confirm the TPU workload is running and properly
+configured for profiling.
+
+> Note:
+> After a successful capture, you might need to refresh the dashboard.
+> You can hit the refresh icon for a single refresh or go to the settings menu
+> (the gear icon) and set "Reload data" automatically.
+
+###### Profile Capture via `xprofiler`: GCE
 
 For JAX, `xprofiler` requires the
 [tensorboard-plugin-profile](https://pypi.org/project/tensorboard-plugin-profile)
@@ -350,7 +460,7 @@ Starting profile capture on host vm_name2.
 Profile saved to gs://<some-bucket>/<some-run>/tensorboard and session id is session_2025_04_03_18_13_49.
 ```
 
-###### GKE
+###### Profile Capture via `xprofiler`: GKE
 
 For GKE, users are required to setup `kubectl` and cluster context on their
 machines. (See details on setting up
@@ -394,13 +504,6 @@ Profile saved to gs://<some-bucket>/<some-run>/tensorboard and session id is ses
 Starting profile capture on pod_2.
 Profile saved to gs://<some-bucket>/<some-run>/tensorboard and session id is session_2025_04_03_18_13_49.
 ```
-
-> Note: For JAX, `xprofiler` requires the
-> [`tensorboard-plugin-profile`](https://pypi.org/project/tensorboard-plugin-profile)
-> package, as well as being available on target Pods.
-
-> Note: `xprofiler` uses `gsutil` to move files to GCS bucket from pod.
-> Container image must have `gcloud` pre-installed.
 
 ## Details on `xprofiler`
 
