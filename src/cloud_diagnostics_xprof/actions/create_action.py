@@ -494,7 +494,29 @@ class Create(action.Command):
     if verbose:
       print(f'Command to run: {command}')
 
-    stdout: str = self._run_command(command, verbose=verbose)
+    # Check ValueError if failure is due to invalid machine type.
+    try:
+      stdout: str = self._run_command(command, verbose=verbose)
+    except ValueError as e:
+      if verbose:
+        print(f'Command failed. Subprocess error:\n{e}')
+      # Check if the error is due to an invalid machine type.
+      if 'Invalid value for field \'resource.machineType\'' in str(e):
+        machine_type_zone_command = (
+            f'gcloud compute machine-types list '
+            f'--filter="name={args.machine_type}"'
+            f'--format="value(zone)"'
+        )
+        message_for_suggested_zones = (
+            'The machine type and zone do not match. '
+            'Please check the machine type and try again. '
+            'You can investigate zones with the machine type '
+            f'{args.machine_type} available: \n'
+            f'{machine_type_zone_command}'
+        )
+        raise ValueError(message_for_suggested_zones) from e
+      else:
+        raise e
 
     timer = 0
     print('Waiting for instance to be created. It can take a few minutes.')

@@ -530,6 +530,10 @@ about that specific subcommand. For example: `xprofiler list -h`
 This command is used to create a new VM instance for `xprofiler` to run with a
 given profile log directory GCS path.
 
+`xprofiler create` will return an error if the machine type given is not found
+in the provided zone. Note that the error message will include a `gcloud`
+command that can be used to determine a zone with the given machine type.
+
 Usage details:
 
 ```
