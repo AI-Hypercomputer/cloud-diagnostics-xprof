@@ -539,12 +539,23 @@ xprofiler create
   --zone ZONE_NAME
   [--vm-name VM_NAME]
   [--machine-type MACHINE_TYPE]
+  [--auto-delete-on-failure-off]
   [--verbose]
 ```
 
 #### `xprofiler create --help`
 
 This provides the basic usage guide for the `xprofiler create` subcommand.
+
+#### `xprofiler create --auto-delete-on-failure-off`
+
+The `create` command will automatically delete failed VM instances created by
+the `xprofiler` tool. This is to ensure that a malformed VM does not persist if
+it can't be fully utilized by `xprofiler`.
+
+However, it can optionally turn off automatic deletion using the
+`--auto-delete-on-failure-off` flag. This can be particularly useful in
+debugging issues when creating VMs.
 
 ### Subcommand: `xprofiler list`
 
