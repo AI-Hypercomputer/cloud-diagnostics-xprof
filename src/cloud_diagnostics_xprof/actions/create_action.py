@@ -503,9 +503,9 @@ class Create(action.Command):
       # Check if the error is due to an invalid machine type.
       if 'Invalid value for field \'resource.machineType\'' in str(e):
         machine_type_zone_command = (
-            f'gcloud compute machine-types list '
-            f'--filter="name={args.machine_type}"'
-            f'--format="value(zone)"'
+            f'gcloud compute machine-types list'
+            f' --filter="name={args.machine_type}"'
+            f' --format="value(zone)"'
         )
         message_for_suggested_zones = (
             'The machine type and zone do not match. '
