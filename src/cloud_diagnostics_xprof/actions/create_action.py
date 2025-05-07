@@ -410,6 +410,76 @@ class Create(action.Command):
           f'Log directory {args.log_directory} does not exist.'
       )
 
+  def _build_suggest_zones_for_machine_type_command(
+      self,
+      machine_type: str,
+      limit: int,
+      zones: Sequence[str] | None,
+  ) -> Sequence[str]:
+    """Suggest zone(s) where the machine type is available.
+
+    Args:
+      machine_type: The machine type to suggest zones for.
+      limit: The maximum number of zones to suggest.
+      zones: The zones to suggest from.
+
+    Returns:
+      The gcloud command to get zones for the machine type.
+    """
+    command = [
+        self.GCLOUD_COMMAND,
+        'compute',
+        'machine-types',
+        'list',
+        '--filter',
+        f'name=\'{machine_type}\'',
+        '--format',
+        'value(zone)',
+    ]
+    if zones:
+      zones_list = ','.join(zones)
+      command.append(f'--zones={zones_list}')
+    # Assumes that 0 means no limit.
+    if limit > 0:
+      command.append(f'--limit={limit}')
+
+    return command
+
+  def _suggest_zones_for_machine_type(
+      self,
+      machine_type: str,
+      limit: int = 10,
+      zones: Sequence[str] | None = None,
+      verbose: bool = False,
+  ) -> Sequence[str]:
+    """Suggest zone(s) where the machine type is available.
+
+    Args:
+      machine_type: The machine type to suggest zones for.
+      limit: The maximum number of zones to suggest.
+      zones: The zones to suggest from.
+      verbose: Whether to print the command and other output.
+
+    Returns:
+      The suggested zones where the machine type is available.
+    """
+    zones_command = self._build_suggest_zones_for_machine_type_command(
+        machine_type=machine_type,
+        limit=limit,
+        zones=zones,
+    )
+    if verbose:
+      print(f'Running command: {zones_command}')
+    # If successful, stdout will be a string separated by newline characters.
+    output = self._run_command(zones_command, verbose=verbose)
+
+    # Parse the output and return the zones.
+    zones = []
+    for line in output.split():
+      if line:
+        zones.append(line.strip())
+    return zones
+
   def run(
       self,
       args: argparse.Namespace,
@@ -502,17 +572,28 @@ class Create(action.Command):
         print(f'Command failed. Subprocess error:\n{e}')
       # Check if the error is due to an invalid machine type.
       if 'Invalid value for field \'resource.machineType\'' in str(e):
+        # Print out command away from suggested zones in case of another error.
         machine_type_zone_command = (
-            f'gcloud compute machine-types list'
-            f' --filter="name={args.machine_type}"'
-            f' --format="value(zone)"'
+            f'gcloud compute machine-types list '
+            f'--filter="name={args.machine_type}" '
+            f'--format="value(zone)" '
         )
-        message_for_suggested_zones = (
-            'The machine type and zone do not match. '
-            'Please check the machine type and try again. '
+        message_for_checking_machine_type = (
+            f'Please check the machine type w/ {args.zone} and try again. '
             'You can investigate zones with the machine type '
             f'{args.machine_type} available: \n'
             f'{machine_type_zone_command}'
+        )
+        print(message_for_checking_machine_type)
+
+        suggested_zones = self._suggest_zones_for_machine_type(
+            machine_type=args.machine_type,
+            verbose=verbose,
+        )
+        message_for_suggested_zones = (
+            'The machine type and zone do not match.\n'
+            f'Suggested zones with machine type {args.machine_type} available: '
+            f'\n{suggested_zones}'
         )
         raise ValueError(message_for_suggested_zones) from e
       else:
