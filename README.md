@@ -72,7 +72,9 @@ Author: Author-email: Hypercompute Diagon <hypercompute-diagon@google.com>
 from GCS bucket. `<project-number>`-compute@developer.gserviceaccount.com should
 have Storage Object User access on the target bucket.
 
-### GCS Path Recommendations
+### Recommendations
+
+#### GCS Paths
 
 `xprofiler` follows a path pattern to identify different profile sessions stored
 in a bucket. This allows visualization of multiple profiling sessions using the
@@ -84,7 +86,7 @@ same `xprofiler` instance.
 * For `xprofiler create` command, use
   `gs://<bucket-name>/<run-name>/tensorboard` pattern.
 
-#### Examples of proper and improper GCS paths:
+##### Examples of proper and improper GCS paths:
 
 ```bash
 # Proper path (note forward slash at end is optional)
@@ -96,6 +98,21 @@ gs://my_other_bucket/main_directory/sub-1/sub-2
 # Improper path: does not start with gs://
 my_other_bucket/main_directory/sub-1/sub-2
 ```
+
+#### Machine Types
+
+During creation, the VM machine type can be specified. By default the machine
+type is `c4-highmem-8` which should be sufficient for most profile sizes.
+
+However, users may choose a smaller or larger performance machine based on their
+profile sizes and/or cost. For relatively small profiles (<100MB), users may
+wish to go down to an `e2-highmem-4` machine. For larger profiles, users may
+want to use a more powerful machine type like a `c4-highmem-32`.
+
+Overall, we recommend a
+[general purpose machine type](https://cloud.google.com/compute/docs/general-purpose-machines)
+though users are welcome to specify other machine types. A list of machine types
+are listed here: https://cloud.google.com/compute/docs/machine-resource
 
 ### Create `xprofiler` Instance
 
