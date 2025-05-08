@@ -91,28 +91,30 @@ class Delete(action.Command):
         help='Print the command.',
     )
 
-  def _get_vms_from_log_directory(
+  def _get_vms_names(
       self,
-      log_directories: Sequence[str],
-      zone: str | None,
+      log_directories: Sequence[str] | None,
+      vm_names: Sequence[str] | None,
+      zone: str | None = None,
       verbose: bool = False,
   ) -> Sequence[str]:
-    """Gets the VM name(s) from the log directory(s).
+    """Gets the VM name(s) from the log directory(s) and/or VM name(s).
 
     Args:
-      log_directories: The log directory(s) associated with the VM(s) to delete.
-      zone: The GCP zone to delete the instance in.
+      log_directories: The log directory(s) associated with the VM(s).
+      vm_names: The VM name(s).
+      zone: The GCP zone to check for VM names. Can be None.
       verbose: Whether to print verbose output.
 
     Returns:
-      The VM name(s) from the log directory(s).
+      The VM name(s) that were actually found.
     """
     # Use the list action to get the VM name(s).
     list_command = list_action.List()
     list_args = argparse.Namespace(
-        zones=[zone],
+        zones=[zone] if zone else None,
         log_directory=log_directories,
-        vm_name=None,
+        vm_name=vm_names,
         filter=None,
         verbose=verbose,
     )
@@ -237,27 +239,16 @@ class Delete(action.Command):
           'Either --vm-name or --log-directory must be specified.'
       )
 
-    # List of VM names to (potentially) delete.
-    vm_candidates = []
+    # List of VM names to (potentially) delete, confirmed by checking project.
+    vm_candidates = self._get_vms_names(
+        log_directories=args.log_directory,
+        vm_names=args.vm_name,
+        zone=args.zone,
+        verbose=verbose,
+    )
 
-    # Include the VM name(s) from the command line if specified.
-    if args.vm_name:
-      if verbose:
-        print(f'VM name(s) from command line: {args.vm_name}')
-      vm_candidates.extend(args.vm_name)
-
-    # If log directory is specified, use that to get the VM name(s).
-    if args.log_directory:
-      vm_names_from_log_directory = self._get_vms_from_log_directory(
-          log_directories=args.log_directory,
-          zone=args.zone,
-          verbose=verbose,
-      )
-
-      if verbose:
-        print(f'VM name(s) from log directory: {vm_names_from_log_directory}')
-
-      vm_candidates.extend(vm_names_from_log_directory)
+    if verbose:
+      print(f'ConfirmedVM candidates to delete: {vm_candidates}')
 
     if not vm_candidates:
       raise ValueError('No VM(s) to delete.')
