@@ -114,6 +114,10 @@ Overall, we recommend a
 though users are welcome to specify other machine types. A list of machine types
 are listed here: https://cloud.google.com/compute/docs/machine-resource
 
+For more information about `xprofiler create` and machine types, see more
+details in the [section below](#xprofiler-create-machine-type) on
+`xprofiler create --machine-type`.
+
 ### Create `xprofiler` Instance
 
 To create a `xprofiler` instance, you must provide a path to a GCS bucket and
@@ -140,7 +144,7 @@ Instance is hosted at xprof-97db0ee6-93f6-46d4-b4c4-6d024b34a99f VM.
 ```
 
 This will create a VM instance with xprofiler packages installed. The setup can
-take up to a few minutes. The link above is shareable with anyone with IAM \
+take up to a few minutes. The link above is shareable with anyone with IAM
 permissions.
 
 By default, xprofiler instances will be hosted on a c4-highmem machine. Users
@@ -567,6 +571,29 @@ xprofiler create
 #### `xprofiler create --help`
 
 This provides the basic usage guide for the `xprofiler create` subcommand.
+
+#### `xprofiler create --machine-type`
+
+The `create` command defaults to using `c4-highmem-8` for the VM instance.
+However, users can specify a different machine type using the flag
+`--machine-type` followed by a machine type such as `e2-highmem-8`. Information
+on machine types can be found
+[here](https://cloud.google.com/compute/docs/machine-resource). Also see
+our [recommendations for `xprofiler`](#machine-types)
+
+Note that if a machine type is not found for the given zone, an error will occur
+with a suggestion for running a `gcloud` command as well as some available zones
+for that machine type.
+
+The output will look similar to this:
+
+```bash
+Please check the machine type w/ us-east5-c and try again. You can investigate zones with the machine type victors-discount-vm available:
+gcloud compute machine-types list --filter="name=victors-discount-vm" --format="value(zone)"
+The machine type and zone do not match.
+Suggested zones with machine type victors-discount-vm available:
+['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f', 'europe-west1-b', 'europe-west1-c', 'europe-west1-d', 'us-west1-a', 'us-west1-b', 'us-west1-c']
+```
 
 #### `xprofiler create --auto-delete-on-failure-off`
 
