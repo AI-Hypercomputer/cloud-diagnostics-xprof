@@ -143,15 +143,23 @@ You can access it via following,
 Instance is hosted at xprof-97db0ee6-93f6-46d4-b4c4-6d024b34a99f VM.
 ```
 
-This will create a VM instance with xprofiler packages installed. The setup can
-take up to a few minutes. The link above is shareable with anyone with IAM
+> Note: Depending on availability, the zone specified might not have the default
+> machine type for the VM. In that case, you instead might see an error followed
+> by potential zones that the machine type is available.
+>
+> For more details, see [section](#xprofiler-create-machine-type) on machine
+> types when using `xprofiler create`.
+
+This will create a VM instance with `xprofiler` packages installed. The setup
+can take up to a few minutes. The link above is shareable with anyone with IAM
 permissions.
 
-By default, xprofiler instances will be hosted on a c4-highmem machine. Users
+By default, `xprofiler` instances will be hosted on a c4-highmem machine. Users
 can also specify a machine type of their choice using the -m flag.
 
-During `create`, Users will be prompted if they would like to create a second
-instance for the same gcs path. Pressing anything but Y/y will exit the program.
+During `create`, users will be prompted if they would like to create a second
+instance for the same GCS path. Pressing anything but `Y` or `y` will exit the
+program.
 
 ```
 $ xprofiler create -z <zone> -l gs://<some-bucket>/<some-run>/tensorboard
