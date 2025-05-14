@@ -707,11 +707,20 @@ class Create(action.Command):
             )
         )
       else:
+        deletion_zone = (
+            extra_args['--zone'] if '--zone' in extra_args else args.zone
+        )
         if verbose:
           print('Deleting VM that was created.')
+          if '--zone' in extra_args:
+            print(
+                f'Using extra args zone={extra_args["--zone"]}'
+                f' instead of {args.zone} provided to subcommand.'
+            )
+          print(f'Deleting from zone: {deletion_zone}')
         _ = self._delete_vm(
             vm_name=self.vm_name,
-            zone=args.zone,
+            zone=deletion_zone,
             verbose=verbose,
         )
 
