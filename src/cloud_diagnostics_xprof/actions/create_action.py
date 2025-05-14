@@ -607,12 +607,23 @@ class Create(action.Command):
     while timer < _MAX_WAIT_TIME_IN_SECONDS:
       time.sleep(_WAIT_TIME_IN_SECONDS)
       timer += _WAIT_TIME_IN_SECONDS
-      command = self._build_describe_command(args, extra_args, verbose)
-      if verbose:
-        print(f'{timer} seconds have passed of {_MAX_WAIT_TIME_IN_SECONDS}.')
-        print(f'Command to run: {command}')
-      stdout_describe = self._run_command(command, verbose=verbose)
-      json_output = json.loads(stdout_describe)
+      # Extra args are separately needed for the describe command.
+      try:
+        command = self._build_describe_command(
+            args=args,
+            extra_args=None,
+            verbose=verbose,
+        )
+        if verbose:
+          print(f'{timer} seconds have passed of {_MAX_WAIT_TIME_IN_SECONDS}.')
+          print(f'Command to run: {command}')
+        stdout_describe = self._run_command(command, verbose=verbose)
+        json_output = json.loads(stdout_describe)
+      except ValueError as e:
+        print(f'Error caught running command to describe VM: {e}')
+        json_output = {}
+        break
+
       vm_labels = json_output.get('labels', {})
       if verbose:
         print(f'JSON labels: \n{vm_labels}')
