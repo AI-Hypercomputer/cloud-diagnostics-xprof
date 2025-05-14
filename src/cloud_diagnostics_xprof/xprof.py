@@ -31,8 +31,30 @@ from cloud_diagnostics_xprof.actions import delete_action
 from cloud_diagnostics_xprof.actions import list_action
 
 
+class KeyValueAction(argparse.Action):
+  """Action to parse a key=value pairs."""
+
+  def __call__(self, parser, namespace, values, option_string=None):
+    # Get either the value from the namespace or create a new one.
+    pairs = getattr(namespace, self.dest, {})
+    # Handles if the ddefault is None.
+    if pairs is None:
+      pairs = {}
+
+    for pair in values:
+      try:
+        key, value = pair.split('=')
+        pairs[key] = value
+      except ValueError:
+        parser.error(
+            f'{option_string}: must be in "key=value" format, got {pair}'
+        )
+
+    setattr(namespace, self.dest, pairs)
+
+
 class XprofParser:
-  """Parser for the xprof CLI."""
+  """Parser for the xprofiler CLI."""
 
   _END_OF_LINE: int = -1
 
@@ -58,6 +80,20 @@ class XprofParser:
     self.parser = argparse.ArgumentParser(
         description=self.description,
         formatter_class=argparse.RawTextHelpFormatter,
+    )
+    # Allow for extra arguments to be passed to the command.
+    self.parser.add_argument(
+        '--extra-args',
+        '-e',
+        metavar='EXTRA_ARGS',
+        nargs='*',
+        action=KeyValueAction,
+        default={},
+        help=(
+            'Extra arguments to pass to the command in key=value format. '
+            'Note that commands will prepend with `--` before adding to the '
+            'main internal command. '
+        ),
     )
     # Only display abbereviated outputs (does not affect verbose).
     self.parser.add_argument(
@@ -138,6 +174,41 @@ class XprofParser:
     )
 
 
+def flag_from_string(flag_name: str) -> str:
+  """Parses the flag from the string.
+
+  If the flag starts with a dash, it is assumed to be correct with correct
+  number of dashes. If the flag is a single character, it is assumed to need a
+  dash. Otherwise, it is assumed to be a double dash.
+
+  Args:
+    flag_name: The flag name to parse.
+
+  Returns:
+    The flag name with dashes if needed.
+  """
+  # If it starts with a dash (assume correct number of dashes) probably correct.
+  if flag_name.startswith('-'):
+    return flag_name
+  elif len(flag_name) == 1:
+    return f'-{flag_name}'
+  else:
+    return f'--{flag_name}'
+
+
+def flag_with_value_from_key_value(key: str, value: str) -> tuple[str, str]:
+  """Parses the full flag from the key and value.
+
+  Args:
+    key: The key of the flag.
+    value: The value of the flag.
+
+  Returns:
+    A tuple of the flag name (with dashes if needed) and value.
+  """
+  return (flag_from_string(key), value)
+
+
 def main():
   xprof_parser: XprofParser = XprofParser(
       commands={
@@ -157,9 +228,21 @@ def main():
     xprof_parser.parser.print_help()
   else:
     try:
+      # Delete extra_args from args before passing to run() to prevent conflict.
+      if hasattr(args, 'extra_args'):
+        # Format the command using dashes.
+        extra_command_args = {}
+        for key, value in args.extra_args.items():
+          new_flag, new_value = flag_with_value_from_key_value(key, value)
+          extra_command_args[new_flag] = new_value
+        del args.extra_args
+      else:
+        extra_command_args = None
+
       command_output = xprof_parser.run(
           command_name=args.command,
           args=args,
+          extra_args=extra_command_args,
           verbose=args.verbose,
       )
 
