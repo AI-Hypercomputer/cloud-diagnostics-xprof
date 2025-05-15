@@ -174,41 +174,6 @@ class XprofParser:
     )
 
 
-def flag_from_string(flag_name: str) -> str:
-  """Parses the flag from the string.
-
-  If the flag starts with a dash, it is assumed to be correct with correct
-  number of dashes. If the flag is a single character, it is assumed to need a
-  dash. Otherwise, it is assumed to be a double dash.
-
-  Args:
-    flag_name: The flag name to parse.
-
-  Returns:
-    The flag name with dashes if needed.
-  """
-  # If it starts with a dash (assume correct number of dashes) probably correct.
-  if flag_name.startswith('-'):
-    return flag_name
-  elif len(flag_name) == 1:
-    return f'-{flag_name}'
-  else:
-    return f'--{flag_name}'
-
-
-def flag_with_value_from_key_value(key: str, value: str) -> tuple[str, str]:
-  """Parses the full flag from the key and value.
-
-  Args:
-    key: The key of the flag.
-    value: The value of the flag.
-
-  Returns:
-    A tuple of the flag name (with dashes if needed) and value.
-  """
-  return (flag_from_string(key), value)
-
-
 def main():
   xprof_parser: XprofParser = XprofParser(
       commands={
@@ -233,7 +198,10 @@ def main():
         # Format the command using dashes.
         extra_command_args = {}
         for key, value in args.extra_args.items():
-          new_flag, new_value = flag_with_value_from_key_value(key, value)
+          new_flag, new_value = action.flag_with_value_from_key_value(
+              key=key,
+              value=value,
+          )
           extra_command_args[new_flag] = new_value
         del args.extra_args
       else:

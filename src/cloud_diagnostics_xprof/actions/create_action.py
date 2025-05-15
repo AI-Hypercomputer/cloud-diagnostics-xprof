@@ -499,6 +499,23 @@ class Create(action.Command):
     Raises:
       RuntimeError: If the backend server cannot be started.
     """
+    # Overwrite args and rebuild extra_args (no shared params)
+    # This makes sure we don't have conflict when given to the main command.
+    if extra_args is not None:
+      extra_args_to_remove = []
+      for key in args.__dict__.keys():
+        # Need to get the extra_args formatted key (includes the `--`)
+        key_extra_args_formatted = action.flag_from_string(key)
+        # Move the key-value to main args if it exists in extra_args.
+        if key_extra_args_formatted in extra_args:
+          args.__dict__[key] = extra_args[key_extra_args_formatted]
+          extra_args_to_remove.append(key_extra_args_formatted)
+      # Rebuild extra_args to remove the keys that were moved to args.
+      extra_args = {
+          key: value for key, value in extra_args.items()
+          if key not in extra_args_to_remove
+      }
+
     # Will raise an error if args are determined to be invalid.
     self._validate_run_args(args=args, verbose=verbose)
 
@@ -560,7 +577,11 @@ class Create(action.Command):
     if verbose:
       print('Creating VM...')
 
-    command = self._build_command(args, extra_args, verbose)
+    command = self._build_command(
+        args=args,
+        extra_args=extra_args,
+        verbose=verbose,
+    )
     if verbose:
       print(f'Command to run: {command}')
 
@@ -707,20 +728,12 @@ class Create(action.Command):
             )
         )
       else:
-        deletion_zone = (
-            extra_args['--zone'] if '--zone' in extra_args else args.zone
-        )
         if verbose:
           print('Deleting VM that was created.')
-          if '--zone' in extra_args:
-            print(
-                f'Using extra args zone={extra_args["--zone"]}'
-                f' instead of {args.zone} provided to subcommand.'
-            )
-          print(f'Deleting from zone: {deletion_zone}')
+          print(f'Deleting from zone: {args.zone}')
         _ = self._delete_vm(
             vm_name=self.vm_name,
-            zone=deletion_zone,
+            zone=args.zone,
             verbose=verbose,
         )
 
