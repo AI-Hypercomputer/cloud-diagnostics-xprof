@@ -90,9 +90,11 @@ class XprofParser:
         action=KeyValueAction,
         default={},
         help=(
-            'Extra arguments to pass to the command in key=value format. '
-            'Note that commands will prepend with `--` before adding to the '
-            'main internal command. '
+            '[EXPERIMENTAL] '
+            'Extra arguments to pass to the command in key=value format.'
+            'This is an experimental feature and may change in the future.\n'
+            ' Note that commands will prepend with `--` (or `-` with single'
+            ' characters) before adding to the main internal command.'
         ),
     )
     # Only display abbereviated outputs (does not affect verbose).

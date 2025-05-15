@@ -554,6 +554,85 @@ available subcommands. Also can be called with `xprofiler -h`.
 > Note: Each subcommand has a `-h (--help)` flag that can give information
 about that specific subcommand. For example: `xprofiler list -h`
 
+### `xprofiler --extra-args`
+
+> Note:
+> This is an experimental feature and may change in the future or be
+> removed completely.
+>
+> Currently, the following subcommands officially support for `--extra-args`:
+>
+>  - `create`
+
+Each available subcommand has a set of parameters passed in with various flags.
+These flags enable certain actions including forming the internal commands
+(mostly [`gcloud`](https://cloud.google.com/cli) commands).
+
+However, some advanced users might find it useful to override the internal
+commands' flags and/or find the available subcommand flags limiting. In that
+case, those users may find the `--extra-args` flag useful.
+
+The basic use is to give flags to the internal command. This means the user
+should ideally be fairly familiar with how the subcommand being overridden would
+use these commands. Thus this is considered a ***advanced usage*** and should be
+used with ***caution***.
+
+#### Using `--extra-args`
+
+Below is an example of using `--extra-args` to change the
+[maintence policy](https://cloud.google.com/sdk/gcloud/reference/compute/instances/create#--maintenance-policy)
+for the `xprofiler` VM instance using the `create` subcommand:
+
+```bash
+xprofiler \
+  --extra-args \
+    maintenance-policy=terminate \
+    -- \
+  create -z us-east5-a -l gs://example-gs-bucket/path
+```
+
+This will essentially add the flag `--maintenance-policy=terminate` to the main
+internal `gcloud` command within the `create` subcommand.
+The values after `--extra-args` must follow `{INTERNAL-FLAG}={VALUE}`.
+
+> Note:
+> After the values given after `--extra-args`, you will need to signal the end
+> of `--extra-args` (and the start of the subcommand) by including `--`.
+
+Values given via `--extra-args` override the values used in the original main
+internal command.
+
+For example, consider the following command:
+
+```bash
+xprofiler \
+  --extra-args \
+    zone=us-central1-a \
+    -- \
+  create -z us-east5-a -l gs://example-gs-bucket/path
+```
+
+This will effective excecute the same main internal command as if this was run
+instead:
+
+```bash
+xprofiler create -z us-central1-a -l gs://example-gs-bucket/path
+```
+
+Finally, it should be noted that multiple values can be used with the
+`--extra-args` flag, such as the example below:
+
+```bash
+
+xprofiler \
+  --extra-args \
+    zone=us-central1-a \
+    maintenance-policy=terminate \
+    machine-type=e2-highmem-8 \
+    -- \
+  create -z us-east5-a -l gs://example-gs-bucket/path
+```
+
 ### Subcommand: `xprofiler create`
 
 This command is used to create a new VM instance for `xprofiler` to run with a
