@@ -210,7 +210,7 @@ class List(action.Command):
   def _build_command(
       self,
       args: argparse.Namespace,
-      extra_args: Mapping[str, str] | None = None,
+      extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) -> Sequence[str]:
     """Builds the list command.
@@ -286,9 +286,10 @@ class List(action.Command):
 
     # Extensions of any other arguments to the main command.
     if extra_args:
-      list_vms_command.extend(
-          [f'{arg}={value}' for arg, value in extra_args.items()]
-      )
+      list_vms_command.extend([
+          f'{arg}={value}' if value else f'{arg}'
+          for arg, value in extra_args.items()
+      ])
 
     if verbose:
       print(list_vms_command)
@@ -298,7 +299,7 @@ class List(action.Command):
   def run(
       self,
       args: argparse.Namespace,
-      extra_args: Mapping[str, str] | None = None,
+      extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) -> str:
     """Run the command.
@@ -413,7 +414,7 @@ class List(action.Command):
       display_str: str | None,
       *,
       args: argparse.Namespace,
-      extra_args: Mapping[str, str] | None = None,
+      extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) -> None:
     """Display provided string after potential formatting.

@@ -154,7 +154,7 @@ class Capture(action.Command):
   def _build_command(
       self,
       args: argparse.Namespace,
-      extra_args: Mapping[str, str] | None = None,
+      extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) -> Sequence[str]:
     command = [
@@ -198,7 +198,7 @@ class Capture(action.Command):
       local_log_location: str,
       args: argparse.Namespace,
       single_host_args: argparse.Namespace,
-      extra_args: Mapping[str, str] | None = None,
+      extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) -> list[Sequence[str]]:
     """Runs the profile script on a single host."""
@@ -305,7 +305,7 @@ class Capture(action.Command):
       host: str,
       zone: str,
       args: argparse.Namespace,
-      extra_args: Mapping[str, str] | None = None,
+      extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) -> str:
     """Runs the profile script on a single host."""
@@ -410,7 +410,7 @@ class Capture(action.Command):
   def run(
       self,
       args: argparse.Namespace,
-      extra_args: Mapping[str, str] | None = None,
+      extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) -> str:
     """Runs the profile capture command."""
@@ -442,7 +442,7 @@ class Capture(action.Command):
       display_str: str | None,
       *,
       args: argparse.Namespace,
-      extra_args: Mapping[str, str] | None = None,
+      extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) -> None:
     """Display provided string after potential formatting.

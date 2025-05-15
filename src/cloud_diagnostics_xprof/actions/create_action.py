@@ -155,7 +155,7 @@ chmod 775 startup.sh
 """
 
 # Used for creating the VM instance.
-_DEFAULT_EXTRA_ARGS: Mapping[str, str] = {
+_DEFAULT_EXTRA_ARGS: Mapping[str, str | None] = {
     '--tags': 'default-allow-ssh',
     '--image-family': 'debian-12',
     '--image-project': 'debian-cloud',
@@ -238,7 +238,7 @@ class Create(action.Command):
   def _build_command(
       self,
       args: argparse.Namespace,
-      extra_args: Mapping[str, str] | None = None,
+      extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) -> Sequence[str]:
     """Builds the create command.
@@ -309,7 +309,10 @@ class Create(action.Command):
     # Extensions of any other arguments to the main command.
     if extra_args:
       create_vm_command.extend(
-          [f'{arg}={value}' for arg, value in extra_args.items()]
+          [
+              f'{arg}={value}' if value else f'{arg}'
+              for arg, value in extra_args.items()
+            ]
       )
 
     if verbose:
@@ -320,7 +323,7 @@ class Create(action.Command):
   def _build_describe_command(
       self,
       args: argparse.Namespace,
-      extra_args: Mapping[str, str] | None = None,
+      extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) -> Sequence[str]:
     """Builds the describe command.
@@ -356,7 +359,10 @@ class Create(action.Command):
     # Extensions of any other arguments to the main command.
     if extra_args:
       describe_vm_command.extend(
-          [f'{arg}={value}' for arg, value in extra_args.items()]
+          [
+              f'{arg}={value}' if value else f'{arg}'
+              for arg, value in extra_args.items()
+          ]
       )
 
     if verbose:
@@ -483,7 +489,7 @@ class Create(action.Command):
   def run(
       self,
       args: argparse.Namespace,
-      extra_args: Mapping[str, str] | None = None,
+      extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) -> str:
     """Run the command.
@@ -744,7 +750,7 @@ class Create(action.Command):
       display_str: str | None,
       *,
       args: argparse.Namespace,
-      extra_args: Mapping[str, str] | None = None,
+      extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) -> None:
     """Display provided string after potential formatting.

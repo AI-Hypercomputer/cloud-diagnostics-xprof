@@ -39,16 +39,22 @@ class KeyValueAction(argparse.Action):
     pairs = getattr(namespace, self.dest, {})
     # Handles if the ddefault is None.
     if pairs is None:
-      pairs = {}
+      pairs: dict[str, str | None] = {}
 
-    for pair in values:
-      try:
-        key, value = pair.split('=')
-        pairs[key] = value
-      except ValueError:
-        parser.error(
-            f'{option_string}: must be in "key=value" format, got {pair}'
-        )
+    for raw_param_value in values:
+      # Value can be in the format of a key=value or just a key.
+      if '=' in raw_param_value:
+        try:
+          key, value = raw_param_value.split('=')
+          pairs[key] = value
+        except ValueError:
+          parser.error(
+              f'{option_string}: must be in "key=value" format, got'
+              f' {raw_param_value}'
+          )
+      else:
+        # Assume the whole param is the key and no value needed.
+        pairs[raw_param_value] = None
 
     setattr(namespace, self.dest, pairs)
 

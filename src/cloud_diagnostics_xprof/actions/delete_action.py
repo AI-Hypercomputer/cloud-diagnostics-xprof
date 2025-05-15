@@ -217,7 +217,7 @@ class Delete(action.Command):
   def _build_command(
       self,
       args: argparse.Namespace,
-      extra_args: Mapping[str, str] | None = None,
+      extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) -> Sequence[str]:
     """Builds the delete command.
@@ -283,14 +283,15 @@ class Delete(action.Command):
         'instances',
         'delete',
         '--quiet',  # Don't ask for confirmation or give extra details.
-        f'--zone={args.zone}'
+        f'--zone={args.zone}',
     ]
 
     # Extensions of any other arguments to the main command.
     if extra_args:
-      delete_vm_command.extend(
-          [f'{arg}={value}' for arg, value in extra_args.items()]
-      )
+      delete_vm_command.extend([
+          f'{arg}={value}' if value else f'{arg}'
+          for arg, value in extra_args.items()
+      ])
 
     delete_vm_command.extend(vm_names)
 
@@ -304,7 +305,7 @@ class Delete(action.Command):
       display_str: str | None,
       *,
       args: argparse.Namespace,
-      extra_args: Mapping[str, str] | None = None,
+      extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) -> None:
     """Display provided string after potential formatting.

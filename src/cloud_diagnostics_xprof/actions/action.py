@@ -96,7 +96,7 @@ class Command(abc.ABC):
   def _build_command(
       self,
       args: argparse.Namespace,
-      extra_args: Mapping[str, str] | None = None,
+      extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) -> Sequence[str]:
     """Build the command.
@@ -113,7 +113,7 @@ class Command(abc.ABC):
   def run(
       self,
       args: argparse.Namespace,
-      extra_args: Mapping[str, str] | None = None,
+      extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) -> str:
     """Run the command.
@@ -328,7 +328,7 @@ class Command(abc.ABC):
       display_str: str | None,
       *,
       args: argparse.Namespace,
-      extra_args: Mapping[str, str] | None = None,
+      extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) -> None:
     """Display provided string after potential formatting.
@@ -504,7 +504,10 @@ def flag_from_string(flag_name: str) -> str:
     return f'--{flag_name}'
 
 
-def flag_with_value_from_key_value(key: str, value: str) -> tuple[str, str]:
+def flag_with_value_from_key_value(
+    key: str,
+    value: str | None,
+) -> tuple[str, str | None]:
   """Parses the full flag from the key and value.
 
   Args:
@@ -514,5 +517,8 @@ def flag_with_value_from_key_value(key: str, value: str) -> tuple[str, str]:
   Returns:
     A tuple of the flag name (with dashes if needed) and value.
   """
-  return (flag_from_string(key), value)
+  flag_name = flag_from_string(key)
+  # If the value is an empty string or None, then we want it to be None
+  flag_value = value if value else None
+  return (flag_name, flag_value)
 

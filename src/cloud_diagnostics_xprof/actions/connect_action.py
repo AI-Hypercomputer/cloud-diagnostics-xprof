@@ -180,7 +180,7 @@ class Connect(action.Command):
   def _build_command(
       self,
       args: argparse.Namespace,
-      extra_args: Mapping[str, str] | None = None,
+      extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) -> Sequence[str]:
     """Builds the command to connect to a xprofiler instance.
@@ -246,7 +246,10 @@ class Connect(action.Command):
     # Extensions of any other arguments to the main command.
     if extra_args:
       connect_command.extend(
-          [f'{arg}={value}' for arg, value in extra_args.items()]
+          [
+              f'{arg}={value}' if value else f'{arg}'
+              for arg, value in extra_args.items()
+            ]
       )
 
     if args.use_ssh_proxy:
@@ -260,7 +263,7 @@ class Connect(action.Command):
   def run(
       self,
       args: argparse.Namespace,
-      extra_args: Mapping[str, str] | None = None,
+      extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) ->  str:
     # If the user wants to disconnect, print a message.
@@ -300,7 +303,7 @@ class Connect(action.Command):
       display_str: str | None,
       *,
       args: argparse.Namespace,
-      extra_args: Mapping[str, str] | None = None,
+      extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) -> None:
     """Display provided string after potential formatting.
