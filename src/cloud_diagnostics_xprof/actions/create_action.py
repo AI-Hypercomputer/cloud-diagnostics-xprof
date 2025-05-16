@@ -264,6 +264,14 @@ class Create(action.Command):
     labels = {
         self.XPROFILER_VERSION_LABEL_KEY: self.XPROFILER_VERSION,
     }
+    # Allow labels from extra_args to be passed; append to hardcoded labels.
+    if ('--labels' in extra_args) and extra_args['--labels']:
+      for user_label in extra_args['--labels'].split(','):
+        user_label_key, user_label_value = user_label.split('=')
+        # Don't allow user to override the version label.
+        if user_label_key != self.XPROFILER_VERSION_LABEL_KEY:
+          labels[user_label_key] = user_label_value
+
     extra_args |= {'--labels': self.format_label_string(labels)}
 
     if verbose:
