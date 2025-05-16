@@ -248,7 +248,8 @@ class Create(action.Command):
 
     Args:
       args: The arguments parsed from the command line.
-      extra_args: Any extra arguments to pass to the command.
+      extra_args: Any extra arguments to pass to the command; will overwrite
+        any default args.
       verbose: Whether to print the command and other output.
 
     Returns:
@@ -258,8 +259,8 @@ class Create(action.Command):
     if extra_args is None:
       extra_args = {}
 
-    # Include our extra args for creation (overwriting any user provided).
-    extra_args |= _DEFAULT_EXTRA_ARGS
+    # Include extra args for creation (overwriting default args).
+    extra_args = _DEFAULT_EXTRA_ARGS | extra_args
 
     labels = {
         self.XPROFILER_VERSION_LABEL_KEY: self.XPROFILER_VERSION,
