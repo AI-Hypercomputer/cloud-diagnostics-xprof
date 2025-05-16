@@ -45,7 +45,8 @@ class KeyValueAction(argparse.Action):
       # Value can be in the format of a key=value or just a key.
       if '=' in raw_param_value:
         try:
-          key, value = raw_param_value.split('=')
+          # Assume split only once and the rest is the value.
+          key, value = raw_param_value.split('=', maxsplit=1)
           pairs[key] = value
         except ValueError:
           parser.error(
