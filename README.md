@@ -612,7 +612,7 @@ xprofiler \
   create -z us-east5-a -l gs://example-gs-bucket/path
 ```
 
-This will effective excecute the same main internal command as if this was run
+This will effectively excecute the same main internal command as if this was run
 instead:
 
 ```bash
