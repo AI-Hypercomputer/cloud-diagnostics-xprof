@@ -248,7 +248,7 @@ class Delete(action.Command):
     )
 
     if verbose:
-      print(f'ConfirmedVM candidates to delete: {vm_candidates}')
+      print(f'Confirmed VM candidates to delete: {vm_candidates}')
 
     if not vm_candidates:
       raise ValueError('No VM(s) to delete.')
