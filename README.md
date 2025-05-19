@@ -101,21 +101,46 @@ my_other_bucket/main_directory/sub-1/sub-2
 
 #### Machine Types
 
-During creation, the VM machine type can be specified. By default the machine
-type is `c4-highmem-8` which should be sufficient for most profile sizes.
+During creation, users have the option to specify the VM machine type.
+The selection of a machine type can impact both performance and cost, and the
+optimal choice often correlates with the size of the profiles users anticipate
+working with.
 
-However, users may choose a smaller or larger performance machine based on their
-profile sizes and/or cost. For relatively small profiles (<100MB), users may
-wish to go down to an `e2-highmem-4` machine. For larger profiles, users may
-want to use a more powerful machine type like a `c4-highmem-32`.
+By default, `xprofiler` utilizes the `c4-highmem-8` machine type. This
+configuration is generally robust and should provide sufficient resources for a
+wide range of common profile sizes.
 
-Overall, we recommend a
-[general purpose machine type](https://cloud.google.com/compute/docs/general-purpose-machines)
-though users are welcome to specify other machine types. A list of machine types
-are listed here: https://cloud.google.com/compute/docs/machine-resource
+However, users may find it beneficial to select a different machine type based
+on their specific needs:
 
-For more information about `xprofiler create` and machine types, see more
-details in the [section below](#xprofiler-create-machine-type) on
+* For workloads involving relatively small profiles (e.g., under approximately
+  100MB), a less powerful machine like `e2-highmem-4` might be a cost-effective
+  alternative without significantly compromising performance for those tasks.
+* Conversely, users with particularly large profiles can opt for a more capable
+  machine (such as `c4-highmem-32`) could lead to faster processing times.
+  Although the default machine type should be sufficient for most users, if
+  users find it taking more than 3 minutes for profiles to load then they may
+  want to try a more powerful machine type for the `xprofiler` VM.
+
+The following table offers some general suggestions.
+Please consider these as rough guidelines rather than strict prescriptions, as
+the ideal machine type can depend on multiple factors specific to users'
+profile data.
+
+| Profile Size | Suggested Machine Type | Primary Consideration |
+|---|---|---|
+| Small | e2-highmem-4 | Cost-effectiveness |
+| Medium / Typical | c4-highmem-8 (Default) | Balanced performance & cost |
+| Large | c4-highmem-32 | Higher processing power |
+
+While we generally recommend utilizing a
+[general-purpose machine type](https://cloud.google.com/compute/docs/general-purpose-machines),
+users are free to explore and specify other machine types that better suit their
+requirements. A comprehensive list of machine types can be found in the
+[Google Cloud documentation](https://cloud.google.com/compute/docs/machine-resource).
+
+For more information about specifying a machine type for `xprofiler create`,
+please refer to the [section below](#xprofiler-create---machine-type) on
 `xprofiler create --machine-type`.
 
 ### Create `xprofiler` Instance
