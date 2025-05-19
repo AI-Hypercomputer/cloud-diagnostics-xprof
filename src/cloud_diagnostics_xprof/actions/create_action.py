@@ -610,14 +610,14 @@ class Create(action.Command):
       if 'Invalid value for field \'resource.machineType\'' in str(e):
         # Print out command away from suggested zones in case of another error.
         machine_type_zone_command = (
-            f'gcloud compute machine-types list '
-            f'--filter="name={args.machine_type}" '
-            f'--format="value(zone)" '
+            f'gcloud compute machine-types list'
+            f' --filter="name={args.machine_type}"'
+            f' --format="value(zone)"'
         )
         message_for_checking_machine_type = (
             f'Please check the machine type w/ {args.zone} and try again. '
             'You can investigate zones with the machine type '
-            f'{args.machine_type} available: \n'
+            f'{args.machine_type} available:\n'
             f'{machine_type_zone_command}'
         )
         print(message_for_checking_machine_type)
@@ -628,8 +628,8 @@ class Create(action.Command):
         )
         message_for_suggested_zones = (
             'The machine type and zone do not match.\n'
-            f'Suggested zones with machine type {args.machine_type} available: '
-            f'\n{suggested_zones}'
+            f'Suggested zones with machine type {args.machine_type}:\n'
+            f'{suggested_zones}'
         )
         raise ValueError(message_for_suggested_zones) from e
       else:
