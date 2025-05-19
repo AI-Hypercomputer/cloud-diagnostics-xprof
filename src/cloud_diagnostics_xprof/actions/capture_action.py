@@ -131,7 +131,7 @@ class Capture(action.Command):
         '--framework',
         '-f',
         metavar='FRAMEWORK',
-        choices=['pytorch', 'jax'],
+        choices=['pytorch', 'jax', 'tensorflow'],
         required=True,
         help='The framework to capture a profile for.',
     )
@@ -225,7 +225,7 @@ class Capture(action.Command):
       )
 
     # Framework is JAX.
-    if args.framework == 'jax':
+    elif args.framework == 'jax':
       # Local directory on remote host.
       # Capture command, generates traces locally.
       single_host_args.command = _JAX_CAPTURE_COMMAND.format(
@@ -239,6 +239,16 @@ class Capture(action.Command):
               extra_args=extra_args,
               verbose=verbose,
           )
+      )
+
+    # Framework is TensorFlow.
+    elif args.framework == 'tensorflow':
+      # On-demand capture not supported yet; use UI instead.
+      # Raise an error to indicate that on-demand capture is not supported.
+      raise ValueError(
+          'On-demand capture is not supported for TensorFlow yet.'
+          '\n\nPlease use the UI method instead:'
+          ' https://github.com/AI-Hypercomputer/cloud-diagnostics-xprof?tab=readme-ov-file#profile-capture-via-tensorboard-ui'
       )
 
     # Upload the profile to gs bucket.

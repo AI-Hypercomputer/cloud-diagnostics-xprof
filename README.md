@@ -324,6 +324,7 @@ Below links have some more information about the individual frameworks:
 
 * [JAX](https://docs.jax.dev/en/latest/profiling.html#manual-capture)
 * [PyTorch](https://cloud.google.com/tpu/docs/pytorch-xla-performance-profiling-tpu-vm#starting_the_profile_server)
+* [TensorFlow](https://www.tensorflow.org/guide/profiler#collect_performance_data)
 
 ##### Programmatic Profile Capture
 
