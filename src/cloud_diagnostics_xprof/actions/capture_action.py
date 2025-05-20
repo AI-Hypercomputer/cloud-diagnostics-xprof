@@ -124,6 +124,7 @@ class Capture(action.Command):
         '-d',
         metavar='DURATION',
         default='2000',
+        type=int,
         help='The duration of the profile in milliseconds.',
     )
     # framework is optional.
