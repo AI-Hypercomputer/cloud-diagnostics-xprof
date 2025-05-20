@@ -298,7 +298,9 @@ xprofiler delete -z $ZONE --vm-name $VM_NAME
 
 ### Capture Profile
 
-Users can capture profiles programmatically or manually.
+Users can capture profiles programmatically or manually. Captured profile data
+will be saved to the given GCS path from `--log-directory`. It will specifically
+save to the path of `gs://<some-bucket>/<some-run>/plugins/profile/`.
 
 ##### Prerequisite: Enable Collector
 
@@ -802,6 +804,11 @@ xprofiler delete
 This provides the basic usage guide for the `xprofiler delete` subcommand.
 
 ### Subcommand: `xprofiler capture`
+
+This command is used to capture profiles from a running workload. The captured
+profiles will be saved based on the `--log-directory` path.
+Specifically `gs://<bucket-name>/<run-name>/plugins/profile/` if given
+`gs://<bucket-name>/<run-name>` for the log directory.
 
 Usage details:
 
