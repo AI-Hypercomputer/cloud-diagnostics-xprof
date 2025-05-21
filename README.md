@@ -76,17 +76,17 @@ have Storage Object User access on the target bucket.
 
 #### GCS Paths
 
-`xprofiler` follows a path pattern to identify different profile sessions stored
-in a bucket. This allows visualization of multiple profiling sessions using the
-same `xprofiler` instance.
+`xprofiler` uses GCS paths for profile data but will follow subdirectories from
+the given path to load profiles.
 
-* For xprofiler capture command, use `gs://<bucket-name>/<run-name>` pattern.
-* All files will be stored in
-  `gs://<bucket-name>/<run-name>/tensorboard/plugin/profile/<session_id>`.
-* For `xprofiler create` command, use
-  `gs://<bucket-name>/<run-name>/tensorboard` pattern.
+For example, providing the log directory as `gs://<bucket-name>/<run-name>/`
+will save captured profiles in the `<run-name>/` directory. Also, any profile
+data found in subdirectories will be loaded in TensorBoard for visualization.
 
-##### Examples of proper and improper GCS paths:
+##### Examples of proper and improper GCS paths
+
+Quick note on examples of proper and improper GCS paths (for log directory
+parameter):
 
 ```bash
 # Proper path (note forward slash at end is optional)
