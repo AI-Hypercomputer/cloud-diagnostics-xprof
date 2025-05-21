@@ -253,8 +253,9 @@ class Capture(action.Command):
       )
 
     # Upload the profile to gs bucket.
+    # Remove trailing slash from log directory; avoids creating a `/` directory.
     single_host_args.command = _UPLOAD_PROFILE_COMMAND.format(
-        log_directory=args.log_directory,
+        log_directory=args.log_directory.rstrip('/'),
         session_id=session_id,
         host=host,
     )
@@ -302,8 +303,9 @@ class Capture(action.Command):
       commands.append(self._build_command_gke(args=single_host_args))
 
     # Upload the profile to gs bucket.
+    # Remove trailing slash from log directory; avoids creating a `/` directory.
     single_host_args.command = _UPLOAD_PROFILE_COMMAND.format(
-        log_directory=args.log_directory,
+        log_directory=args.log_directory.rstrip('/'),
         session_id=session_id,
         host=host,
     )
