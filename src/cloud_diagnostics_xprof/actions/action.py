@@ -380,6 +380,8 @@ class Command(abc.ABC):
   ) -> bool:
     """Checks if the bucket exists and the path was part of full GCS bucket URL.
 
+    Note that path part is not necessary for valid bucket URL.
+
     Args:
       bucket_name: Name of bucket to check. Assumes bucket url (gs://my-bucket)
       verbose: Whether to print the command and other output.
@@ -403,7 +405,7 @@ class Command(abc.ABC):
     if path_part is None:
       if verbose:
         print(f'Path part from bucket URL {bucket_name} does not exist.')
-      return False
+      return True
 
     # Check for bucket existence (ignores path part).
     return self._bucket_exists(
