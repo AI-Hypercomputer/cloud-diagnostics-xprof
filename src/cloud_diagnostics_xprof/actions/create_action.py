@@ -38,8 +38,8 @@ _MAX_WAIT_TIME_IN_SECONDS = 300
 _OUTPUT_MESSAGE = r"""
 Instance for {LOG_DIRECTORY} has been created.
 You can access it via the following,
-1. xprofiler connect -z {ZONE} -l {LOG_DIRECTORY} -m ssh
-2. [Experimental (supports small captures, < 200 mb)] https://{BACKEND_ID}-dot-{REGION}.notebooks.googleusercontent.com
+1. https://{BACKEND_ID}-dot-{REGION}.notebooks.googleusercontent.com
+2. xprofiler connect -z {ZONE} -l {LOG_DIRECTORY} -m ssh
 Instance is hosted at {VM_NAME} VM.
 """
 

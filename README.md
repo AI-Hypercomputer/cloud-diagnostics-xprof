@@ -164,8 +164,8 @@ Waiting for instance to be created. It can take a few minutes.
 
 Instance for gs://<some-bucket>/<some-run> has been created.
 You can access it via following,
-1. xprofiler connect -z <some zone> -l gs://<some-bucket>/<some-run> -m ssh
-2. [Experimental (supports smaller files, < 200mb)] https://<id>-dot-us-<region>.notebooks.googleusercontent.com.
+1. https://<id>-dot-us-<region>.notebooks.googleusercontent.com.
+2. xprofiler connect -z <some zone> -l gs://<some-bucket>/<some-run> -m ssh
 Instance is hosted at xprof-97db0ee6-93f6-46d4-b4c4-6d024b34a99f VM.
 ```
 
@@ -203,8 +203,8 @@ Waiting for instance to be created. It can take a few minutes.
 
 Instance for gs://<some-bucket>/<some-run>/tensorboard has been created.
 You can access it via following,
-1. xprofiler connect -z <zone> -l gs://<some-bucket>/<some-run>/tensorboard -m ssh
-2. [Experimental (supports smaller files, < 200mb)] https://<id>-dot-us-<region>.notebooks.googleusercontent.com.
+1. https://<id>-dot-us-<region>.notebooks.googleusercontent.com.
+2. xprofiler connect -z <zone> -l gs://<some-bucket>/<some-run>/tensorboard -m ssh
 Instance is hosted at xprof-<uuid> VM.
 ```
 
