@@ -118,20 +118,21 @@ on their specific needs:
   alternative without significantly compromising performance for those tasks.
 * Conversely, users with particularly large profiles can opt for a more capable
   machine (such as `c4-highmem-32`) could lead to faster processing times.
-  Although the default machine type should be sufficient for most users, if
-  users find it taking more than 3 minutes for profiles to load then they may
-  want to try a more powerful machine type for the `xprofiler` VM.
+* Although the default machine type should be sufficient for most users, if
+  users find it taking more than **3 minutes** for profiles to load then they
+  may want to try a more powerful machine type for the `xprofiler` VM.
 
 The following table offers some general suggestions.
 Please consider these as rough guidelines rather than strict prescriptions, as
 the ideal machine type can depend on multiple factors specific to users'
-profile data.
+profile data. Users may want to try more powerful machine types if it takes more
+than ***3 minutes*** to load.
 
 | Profile Size | Suggested Machine Type | Primary Consideration |
 |---|---|---|
-| Small | e2-highmem-4 | Cost-effectiveness |
+| Small (< ~100 MB) | e2-highmem-4 | Cost-effectiveness |
 | Medium / Typical | c4-highmem-8 (Default) | Balanced performance & cost |
-| Large | c4-highmem-32 | Higher processing power |
+| Large (> 1 GB)| c4-highmem-32 | Higher processing power |
 
 While we generally recommend utilizing a
 [general-purpose machine type](https://cloud.google.com/compute/docs/general-purpose-machines),
