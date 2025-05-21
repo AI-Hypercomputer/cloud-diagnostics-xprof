@@ -29,6 +29,9 @@ from cloud_diagnostics_xprof.actions import action
 from cloud_diagnostics_xprof.actions import delete_action
 from cloud_diagnostics_xprof.actions import list_action
 
+# Frozen to specific version of tensorboard-plugin-profile; updated periodically
+# Note used for install and adding to metadata + label.
+_TENSORBOARD_PLUGIN_PROFILE_VERSION = '2.19.5'
 
 _WAIT_TIME_IN_SECONDS = 20
 _MAX_WAIT_TIME_IN_SECONDS = 300
@@ -61,8 +64,8 @@ virtualenv -p python3 tensorboardvenv
 source tensorboardvenv/bin/activate
 tensorboardvenv/bin/pip3 install tensorflow-cpu
 tensorboardvenv/bin/pip3 install --upgrade 'cloud-tpu-profiler'
-tensorboardvenv/bin/pip3 install tensorboard_plugin_profile
-tensorboardvenv/bin/pip3 install importlib_resources
+tensorboardvenv/bin/pip3 install tensorboard-plugin-profile=={TENSORBOARD_PLUGIN_PROFILE_VERSION}
+tensorboardvenv/bin/pip3 install importlib-resources
 tensorboardvenv/bin/pip3 install etils
 tensorboard --logdir {LOG_DIRECTORY} --host 0.0.0.0 --port 6006 &
 # Label VM with the current timestamp if TB has launched successfully.
@@ -264,6 +267,10 @@ class Create(action.Command):
 
     labels = {
         self.XPROFILER_VERSION_LABEL_KEY: self.XPROFILER_VERSION,
+        'tensorboard_plugin_profile': (
+            _TENSORBOARD_PLUGIN_PROFILE_VERSION
+            .replace('.', '-')  # No dots; dashes are ok.
+        ),
     }
     # Allow labels from extra_args to be passed; append to hardcoded labels.
     if ('--labels' in extra_args) and extra_args['--labels']:
@@ -300,6 +307,7 @@ class Create(action.Command):
             f'{self.XPROFILER_VERSION_LABEL_KEY}={self.XPROFILER_VERSION}'
             f',{self.LOG_DIRECTORY_LABEL_KEY}={log_directory_formatted_string}'
             f',startup-script={startup_entry_script}'
+            f',tensorboard-plugin-profile={_TENSORBOARD_PLUGIN_PROFILE_VERSION}'
         )
     }
 
@@ -317,12 +325,10 @@ class Create(action.Command):
 
     # Extensions of any other arguments to the main command.
     if extra_args:
-      create_vm_command.extend(
-          [
-              f'{arg}={value}' if value else f'{arg}'
-              for arg, value in extra_args.items()
-            ]
-      )
+      create_vm_command.extend([
+          f'{arg}={value}' if value else f'{arg}'
+          for arg, value in extra_args.items()
+      ])
 
     if verbose:
       print(create_vm_command)
@@ -793,5 +799,6 @@ def startup_script_string(log_directory: str, vm_name: str, zone: str) -> str:
           TB_BACKEND_LABEL=_TB_BACKEND_LABEL,
           TB_ATTEMPTS_LABEL=_TB_ATTEMPTS_LABEL,
           MAX_TB_ATTEMPTS=_MAX_TB_ATTEMPTS,
+          TENSORBOARD_PLUGIN_PROFILE_VERSION=_TENSORBOARD_PLUGIN_PROFILE_VERSION,
       )
   )
