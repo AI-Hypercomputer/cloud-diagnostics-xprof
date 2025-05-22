@@ -363,8 +363,10 @@ class Capture(action.Command):
         )
 
         stdout_all += stdout
+      # Removes trailing slash from log directory before tensorboard directory.
       print(
-          f'Profile saved to {args.log_directory}/tensorboard and session id'
+          f'Profile saved to {args.log_directory.rstrip('/')}'
+          '/tensorboard and session id'
           f' is session_{session_id}.'
       )
     except Exception as e:  # pylint: disable=broad-except
