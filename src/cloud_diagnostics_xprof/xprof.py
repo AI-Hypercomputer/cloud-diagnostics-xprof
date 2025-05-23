@@ -201,6 +201,8 @@ def main():
   if args.command is None:
     xprof_parser.parser.print_help()
   else:
+    if args.verbose:
+      print(f'xprofiler args:\n{args}')
     try:
       # Delete extra_args from args before passing to run() to prevent conflict.
       if hasattr(args, 'extra_args'):
