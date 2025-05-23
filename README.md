@@ -67,10 +67,16 @@ Author: Author-email: Hypercompute Diagon <hypercompute-diagon@google.com>
 
 `xprofiler` relies on project level IAM permissions.
 
-* Users must have Compute User or Editor permissions on the project.
-* `xprofiler` uses default compute user service account to access trace files
-from GCS bucket. `<project-number>`-compute@developer.gserviceaccount.com should
-have Storage Object User access on the target bucket.
+* VM's service account must have required permissions.
+  * `<project-number>`-compute@developer.gserviceaccount.com is the default
+  service account and users can also use custom SAs for their setup.
+  * Service Account must have any role providing `compute.instances.get`,
+  `compute.instances.setLabels` and `compute.zoneOperations.get` permissions.
+  These permissions are needed to set VM labels during installation.
+  * Service Account must also have `Storage Object User` role. This is needed to
+   read/write profile traces to GCS.
+* Users must have `Service Account User` role on above service account. This is
+needed to access reverse proxy URL link for visualization.
 
 ### Recommendations
 
