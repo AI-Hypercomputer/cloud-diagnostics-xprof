@@ -26,7 +26,14 @@ For more information about profiling with `xprof`, please see the `xprof`
 
 ## Quickstart
 
-These steps can be setup on user's workstation/cloudtop.
+Xprofiler can be setup on user's workstation/cloudtop or on your TPU VM.
+
+> Note:
+> Before setting up `xprofiler`, users will need to enable profile collection
+> for their workload by starting the profile server
+> (see [section on enabling this collector](#prerequisite-enable-collector))
+> or capturing programmatically
+> (see [section on programmatic profile capture](#programmatic-profile-capture)).
 
 ### Install Dependencies
 
@@ -57,7 +64,7 @@ pip install cloud-diagnostics-xprof
 pip show cloud-diagnostics-xprof
 
 Name: cloud-diagnostics-xprof
-Version: 0.0.9
+Version: X.Y.Z
 Summary: Abstraction over profile session locations and infrastructure running the analysis.
 Home-page: https://github.com/AI-Hypercomputer/cloud-diagnostics-xprof
 Author: Author-email: Hypercompute Diagon <hypercompute-diagon@google.com>
@@ -69,7 +76,7 @@ Author: Author-email: Hypercompute Diagon <hypercompute-diagon@google.com>
 
 * VM's service account must have required permissions.
   * `<project-number>`-compute@developer.gserviceaccount.com is the default
-  service account and users can also use custom SAs for their setup.
+  service account. Users can also use custom Service Accounts for their setup.
   * Service Account must have any role providing `compute.instances.get`,
   `compute.instances.setLabels` and `compute.zoneOperations.get` permissions.
   These permissions are needed to set VM labels during installation.
@@ -78,16 +85,63 @@ Author: Author-email: Hypercompute Diagon <hypercompute-diagon@google.com>
 * Users must have `Service Account User` role on above service account. This is
 needed to access reverse proxy URL link for visualization.
 
+> Summary:
+>
+> Users need to ensure when using `xprofiler` that it's in the _same project_ as
+> their GCS bucket.
+>
+> Users also need to ensure they put the required permissions for their GCS
+> bucket so the `xprofiler` VM can access the bucket.
+
 ### Recommendations
 
 #### GCS Paths
 
-`xprofiler` uses GCS paths for profile data but will follow subdirectories from
-the given path to load profiles.
+`xprofiler` uses a specific path pattern to locate and manage multiple profiling
+sessions stored within a Google Cloud Storage (GCS) bucket. This enables the
+visualization of various profiling sessions from different runs using a single
+`xprofiler` instance.
 
-For example, providing the log directory as `gs://<bucket-name>/<run-name>/`
-will save captured profiles in the `<run-name>/` directory. Also, any profile
-data found in subdirectories will be loaded in TensorBoard for visualization.
+##### GCS Paths for `xprofiler create`
+
+It's recommended when using the `xprofiler create` subcommand to specify only
+the root GCS bucket, without any subdirectories:
+
+```
+gs://<bucket-name>
+```
+
+This approach allows `xprofiler` to discover and load profiles from multiple
+runs and sessions stored under that bucket.
+For instance, all the profile as organized below would be loaded in our example:
+
+* `gs://<bucket-name>/run1/plugins/profile/session1/<profile.xplane.pb`
+* `gs://<bucket-name>/run1/plugins/profile/session2/<profile.xplane.pb`
+* `gs://<bucket-name>/run2/plugins/profile/session1/<profile.xplane.pb`
+
+Specifying `gs://<bucket-name>` during `xprofiler create` will allow users to
+view all of these profiles in Tensorboard. They will see all runs in the
+dropdown menu as `run1-session1`, `run1-session2`, and `run2-session1`.
+
+##### GCS Paths for Profile Capture
+
+When users programmatically capture profiles or use the `xprofiler capture`
+subcommand with a GCS bucket path like `gs://<bucket-name>/<run-name>`, all
+profiling data will be collected in a structured subdirectory:
+
+```
+gs://<bucket-name>/<run-name>/tensorboard/plugins/profile/<session-id>/
+```
+
+Users will see the run in the dropdown menu as
+`<run-name>/tensorboard/<session-id>/`.
+Here, the `<session-id>` uniquely identifies a specific profiling session within
+that run.
+
+> Note:
+> As long as users have xplane files that follow the pattern
+> `.../plugins/profile/<session>` under the bucket path from
+> `xprofiler create`, all the profiles will be picked up in any subdirectories.
 
 ##### Examples of proper and improper GCS paths
 
@@ -153,11 +207,11 @@ please refer to the [section below](#xprofiler-create---machine-type) on
 ### Create `xprofiler` Instance
 
 To create a `xprofiler` instance, you must provide a path to a GCS bucket and
-zone. Project information will be retrieved from gcloud config.
+zone. Project information will be retrieved from `gcloud`'s config.
 
 ```bash
 ZONE="<some zone>"
-GCS_PATH="gs://<some-bucket>/<some-run>/tensorboard"
+GCS_PATH="gs://<some-bucket>"
 
 xprofiler create -z $ZONE -l $GCS_PATH
 ```
@@ -168,10 +222,10 @@ instance created, similar to below:
 ```
 Waiting for instance to be created. It can take a few minutes.
 
-Instance for gs://<some-bucket>/<some-run> has been created.
+Instance for gs://<some-bucket> has been created.
 You can access it via following,
 1. https://<id>-dot-us-<region>.notebooks.googleusercontent.com.
-2. xprofiler connect -z <some zone> -l gs://<some-bucket>/<some-run> -m ssh
+2. xprofiler connect -z <some zone> -l gs://<some-bucket> -m ssh
 Instance is hosted at xprof-97db0ee6-93f6-46d4-b4c4-6d024b34a99f VM.
 ```
 
@@ -194,35 +248,33 @@ instance for the same GCS path. Pressing anything but `Y` or `y` will exit the
 program.
 
 ```
-$ xprofiler create -z <zone> -l gs://<some-bucket>/<some-run>/tensorboard
+$ xprofiler create -z <zone> -l gs://<some-bucket>
 
-Instance for gs://<some-bucket>/<some-run>/tensorboard already exists.
+Instance for gs://<some-bucket> already exists.
 
-Log_Directory                              URL                                                                  Name                                        Zone
------------------------------------------  -------------------------------------------------------------------  ------------------------------------------  -------
-gs://<some-bucket>/<some-run>/tensorboard  https://<id>-dot-us-<region>.notebooks.googleusercontent.com         xprof-97db0ee6-93f6-46d4-b4c4-6d024b34a99f  <zone>
+Log_Directory       URL                                                           Name                                        Zone
+------------------  ------------------------------------------------------------  ------------------------------------------  -------
+gs://<some-bucket>  https://<id>-dot-us-<region>.notebooks.googleusercontent.com  xprof-97db0ee6-93f6-46d4-b4c4-6d024b34a99f  <zone>
 
 
 Do you want to continue to create another instance with the same log directory? (y/n)
 y
 Waiting for instance to be created. It can take a few minutes.
 
-Instance for gs://<some-bucket>/<some-run>/tensorboard has been created.
+Instance for gs://<some-bucket> has been created.
 You can access it via following,
 1. https://<id>-dot-us-<region>.notebooks.googleusercontent.com.
-2. xprofiler connect -z <zone> -l gs://<some-bucket>/<some-run>/tensorboard -m ssh
+2. xprofiler connect -z <zone> -l gs://<some-bucket> -m ssh
 Instance is hosted at xprof-<uuid> VM.
 ```
 
 ### Open `xprofiler` Instance
 
-##### Using Proxy (Only supports small captures, less than 10sec)
+##### Using Proxy
 
 Users can open created instances using the link from create output. This path
 relies on a reverse proxy to expose the xprofiler backend. Users must have
 valid IAM permissions.
-
-> Note: Currently, This path can only support smaller trace files (<200 mb).
 
 ##### Using SSH Tunnel (Preferred for larger captures)
 
@@ -237,8 +289,17 @@ browsers.
 xprofiler connect -z $ZONE -l $GCS_PATH -m ssh
 
 xprofiler instance can be accessed at http://localhost:6006.
-
 ```
+
+> Note:
+> Running `xprofiler connect` using the SSH tunnel must be done in your local
+> host and ***not*** on a TPU VM.
+>
+> Running `xprofiler connect` using the SSH option allows users to open the
+> `xprofiler` web server and accessed on user's local browser.
+> Therefore, running the `xprofiler connect` subcommand on a TPU VM is not
+> particularly useful and won't work as expected if the command is done on a TPU
+> VM.
 
 ### List `xprofiler` Instances
 
@@ -259,10 +320,10 @@ This will output something like the following if there are instances matching
 the list criteria:
 
 ```bash
-Log_Directory                              URL                                                                  Name                                        Zone
------------------------------------------  -------------------------------------------------------------------  ------------------------------------------  -------
-gs://<some-bucket>/<some-run>/tensorboard  https://<id>-dot-us-<region>.notebooks.googleusercontent.com         xprof-97db0ee6-93f6-46d4-b4c4-6d024b34a99f  <zone>
-gs://<some-bucket>/<some-run>/tensorboard  https://<id>-dot-us-<region>.notebooks.googleusercontent.com         xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  <zone>
+Log_Directory             URL                                                                  Name                                        Zone
+------------------------  -------------------------------------------------------------------  ------------------------------------------  -------
+gs://<some-bucket>        https://<id>-dot-us-<region>.notebooks.googleusercontent.com         xprof-97db0ee6-93f6-46d4-b4c4-6d024b34a99f  <zone>
+gs://<some-other-bucket>  https://<id>-dot-us-<region>.notebooks.googleusercontent.com         xprof-ev86r7c5-3d09-xb9b-a8e5-a495f5996eef  <zone>
 ```
 
 Note you can specify one or more GCS bucket paths and/or VM instance names to
@@ -286,12 +347,12 @@ VM instances' names. Specifying the zone is required.
 
 ```bash
 # Delete by associated GCS path
-xprofiler delete -z us-central1-b -l gs://<some-bucket>/<some-run>/tensorboard
+xprofiler delete -z us-central1-b -l gs://<some-bucket>
 
 Found 1 VM(s) to delete.
-Log_Directory                              URL                                                                  Name                                        Zone
------------------------------------------  -------------------------------------------------------------------  ------------------------------------------  -------
-gs://<some-bucket>/<some-run>/tensorboard  https://<id>-dot-us-<region>.notebooks.googleusercontent.com         xprof-8187640b-e612-4c47-b4df-59a7fc86b253  <zone>
+Log_Directory       URL                                                                  Name                                        Zone
+------------------  -------------------------------------------------------------------  ------------------------------------------  -------
+gs://<some-bucket>  https://<id>-dot-us-<region>.notebooks.googleusercontent.com         xprof-8187640b-e612-4c47-b4df-59a7fc86b253  <zone>
 
 Do you want to continue to delete the VM `xprof-8187640b-e612-4c47-b4df-59a7fc86b253`?
 Enter y/n: y
@@ -313,7 +374,11 @@ save to the path of `gs://<some-bucket>/<some-run>/plugins/profile/`.
 
 Users are required to enable the collector from their workloads following below
 steps.
-> Note: This is needed for both Programmatic and Manual captures.
+
+> Note: This is needed for both programmatic and manual captures, except for
+> JAX.
+> For JAX programmatic capture, users do not need to include `start_server`.
+> Users using JAX only need this for manual profile capture methods.
 
 ```python
 # To enable for a jax workload
@@ -350,6 +415,15 @@ jax.profiler.start_trace("gs://<some_bucket>/<some_run>")
 # Code to profile
 ...
 jax.profiler.stop_trace()
+```
+
+Alternatively, use the `jax.profiler.trace()` context manager:
+
+```python
+with jax.profiler.trace("gs://<some_bucket>/<some_run>"):
+  # Code to profile
+  ...
+
 ```
 
 ###### PyTorch Profile Capture
@@ -647,7 +721,7 @@ xprofiler \
   create -z us-east5-a -l gs://example-gs-bucket/path
 ```
 
-This will effectively excecute the same main internal command as if this was run
+This will effectively execute the same main internal command as if this was run
 instead:
 
 ```bash
