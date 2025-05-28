@@ -663,15 +663,7 @@ available subcommands. Also can be called with `xprofiler -h`.
 > Note: Each subcommand has a `-h (--help)` flag that can give information
 about that specific subcommand. For example: `xprofiler list -h`
 
-### `xprofiler --extra-args`
-
-> Note:
-> This is an experimental feature and may change in the future or be
-> removed completely.
->
-> Currently, the following subcommands officially support for `--extra-args`:
->
->  - `create`
+### Passing Extra Arguments to `xprofiler` Subcommands
 
 Each available subcommand has a set of parameters passed in with various flags.
 These flags enable certain actions including forming the internal commands
@@ -679,46 +671,57 @@ These flags enable certain actions including forming the internal commands
 
 However, some advanced users might find it useful to override the internal
 commands' flags and/or find the available subcommand flags limiting. In that
-case, those users may find the `--extra-args` flag useful.
+case, those users may find the feature of being able to pass extra arguments
+(not officially defined in the `xprofiler` subcommand) to xprofiler subcommands
+useful.
 
 The basic use is to give flags to the internal command. This means the user
 should ideally be fairly familiar with how the subcommand being overridden would
 use these commands. Thus this is considered a ***advanced usage*** and should be
 used with ***caution***.
 
-#### Using `--extra-args`
-
-Below is an example of using `--extra-args` to change the
+Below is an example of using extra arguments to change the
 [maintence policy](https://cloud.google.com/sdk/gcloud/reference/compute/instances/create#--maintenance-policy)
 for the `xprofiler` VM instance using the `create` subcommand:
 
 ```bash
 xprofiler \
-  --extra-args \
-    maintenance-policy=terminate \
-    -- \
-  create -z us-east5-a -l gs://example-gs-bucket/path
+  create \
+    -z us-east5-a -l gs://example-gs-bucket/path \
+    --maintenance-policy=terminate
 ```
 
 This will essentially add the flag `--maintenance-policy=terminate` to the main
 internal `gcloud` command within the `create` subcommand.
-The values after `--extra-args` must follow `{INTERNAL-FLAG}={VALUE}`.
+
+The following extra argument formats are supported:
+
+* `--flag` or `-f` (as a boolean flag)
+* `--flag value` or `-f value`
+* `--flag=value` or `-f=value`
+* `--flag=value0,value1,value2` or `-f value0,value1,value2` for multiple values
+* `--flag value0,value1,value2` or `-f value0,value1,value2` for multiple values
 
 > Note:
-> After the values given after `--extra-args`, you will need to signal the end
-> of `--extra-args` (and the start of the subcommand) by including `--`.
+> It's recommended that users pass extra arguments *after* the subcommand
+> (`create`, `list`, etc.).
+>
+> Although there is some support providing the extra arguments before the
+> subcommand (such as `xprofiler --limit=5 list -z $ZONE`) it is not guaranteed
+> to work. This is because there can be interference with the subcommand
+> position.
 
-Values given via `--extra-args` override the values used in the original main
-internal command.
+
+Values given as extra arguments may override the values used in the original
+main internal command.
 
 For example, consider the following command:
 
 ```bash
 xprofiler \
-  --extra-args \
-    zone=us-central1-a \
-    -- \
-  create -z us-east5-a -l gs://example-gs-bucket/path
+  create \
+    -z us-east5-a -l gs://example-gs-bucket/path \
+    --zone=us-central1-a
 ```
 
 This will effectively execute the same main internal command as if this was run
@@ -728,18 +731,17 @@ instead:
 xprofiler create -z us-central1-a -l gs://example-gs-bucket/path
 ```
 
-Finally, it should be noted that multiple values can be used with the
-`--extra-args` flag, such as the example below:
+Finally, it should be noted that multiple values can be used as extra arguments,
+such as the example below:
 
 ```bash
 
 xprofiler \
-  --extra-args \
-    zone=us-central1-a \
-    maintenance-policy=terminate \
-    machine-type=e2-highmem-8 \
-    -- \
-  create -z us-east5-a -l gs://example-gs-bucket/path
+  create \
+    -z us-east5-a -l gs://example-gs-bucket/path \
+    --zone=us-central1-a \
+    --maintenance-policy=terminate \
+    --machine-type=e2-highmem-8
 ```
 
 ### Subcommand: `xprofiler create`

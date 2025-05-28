@@ -88,22 +88,6 @@ class XprofParser:
         description=self.description,
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    # Allow for extra arguments to be passed to the command.
-    self.parser.add_argument(
-        '--extra-args',
-        '-e',
-        metavar='EXTRA_ARGS',
-        nargs='*',
-        action=KeyValueAction,
-        default={},
-        help=(
-            '[EXPERIMENTAL] '
-            'Extra arguments to pass to the command in key=value format.'
-            'This is an experimental feature and may change in the future.\n'
-            ' Note that commands will prepend with `--` (or `-` with single'
-            ' characters) before adding to the main internal command.'
-        ),
-    )
     # Only display abbereviated outputs (does not affect verbose).
     self.parser.add_argument(
         '--abbrev',
@@ -130,7 +114,7 @@ class XprofParser:
       self,
       command_name: str,
       args: argparse.Namespace,
-      extra_args: Mapping[str, str] | None = None,
+      extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) -> str:
     """Runs the command.
@@ -182,6 +166,65 @@ class XprofParser:
         verbose=verbose,
     )
 
+  def parse_extra_args(
+      self,
+      extra_args: list[str] | None,
+  ) -> Mapping[str, str | None] | None:
+    """Parses the extra arguments to be given to the next CLI command.
+
+    Uses the following format:
+      --flag
+      -f
+      --flag value
+      -f value
+      --flag=value
+      -f=value
+      --flag=value0,value1,value2
+      -f value0,value1,value2
+      --flag value0,value1,value2
+      -f value0,value1,value2
+
+    Combinations above are all valid. For example:
+      --flag=value --other-flag value -f=value
+
+    Arguements that are not 'flags' (don't start with a dash) are ignored if not
+    preceeded by a flag.
+
+    Args:
+      extra_args: The extra arguments from the command line.
+
+    Returns:
+      A mapping of the parsed extra arguments.
+    """
+    if extra_args is None:
+      return None
+    extra_args_map = {}
+    # Better to iterate using a while loop since can be arbiratry values.
+    i = 0
+    while i < len(extra_args):
+      arg = extra_args[i]
+      # Arg starts with a dash, so it's a flag.
+      if arg.startswith('-'):
+        flag_name = arg
+        # Look ahead for a value, as long as it's not another flag
+        # Accept multiple values after a flag.
+        all_values: list[str] = []
+        while i + 1 < len(extra_args) and not extra_args[i+1].startswith('-'):
+          value = extra_args[i+1]
+          i += 1  # Skip the value as a flag.
+          all_values.append(value)
+
+        # value will be passed to the next command so it can be either None or a
+        # string of multiple values separated by spaces.
+        # Note: no value could be a boolean or assignment (e.g. -f=value).
+        value = ' '.join(all_values) if all_values else None
+        # Don't need to format the string since it should already be formatted.
+        extra_args_map[flag_name] = value
+      else:  # Hits if not a 'flag'. (Or if multiple values for a flag.)
+        print(f'Warning: Unexpected argument instead of flag: {arg}')
+      i += 1
+    return extra_args_map if extra_args_map else None
+
 
 def main():
   xprof_parser: XprofParser = XprofParser(
@@ -195,7 +238,7 @@ def main():
   )
 
   # Parse args from CLI.
-  args = xprof_parser.parser.parse_args()
+  args, extra_args = xprof_parser.parser.parse_known_args()
 
   # Run command (prints output as necessary).
   if args.command is None:
@@ -203,20 +246,9 @@ def main():
   else:
     if args.verbose:
       print(f'xprofiler args:\n{args}')
+      print(f'xprofiler extra_args:\n{extra_args}')
     try:
-      # Delete extra_args from args before passing to run() to prevent conflict.
-      if hasattr(args, 'extra_args'):
-        # Format the command using dashes.
-        extra_command_args = {}
-        for key, value in args.extra_args.items():
-          new_flag, new_value = action.flag_with_value_from_key_value(
-              key=key,
-              value=value,
-          )
-          extra_command_args[new_flag] = new_value
-        del args.extra_args
-      else:
-        extra_command_args = None
+      extra_command_args = xprof_parser.parse_extra_args(extra_args)
 
       command_output = xprof_parser.run(
           command_name=args.command,
