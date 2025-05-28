@@ -77,13 +77,12 @@ Author: Author-email: Hypercompute Diagon <hypercompute-diagon@google.com>
 * VM's service account must have required permissions.
   * `<project-number>`-compute@developer.gserviceaccount.com is the default
   service account. Users can also use custom Service Accounts for their setup.
-  * Service Account must have any role providing `compute.instances.get`,
-  `compute.instances.setLabels` and `compute.zoneOperations.get` permissions.
-  These permissions are needed to set VM labels during installation.
-  * Service Account must also have `Storage Object User` role. This is needed to
-   read/write profile traces to GCS.
+  * Service Account must have `Storage Object User` role on input GCS bucket.
+  This is needed to read/write profile traces to GCS.
 * Users must have `Service Account User` role on above service account. This is
 needed to access reverse proxy URL link for visualization.
+* Users must have `Storage Object User` role on input GCS bucket. This is
+needed to validate xprofiler instance state during setup.
 
 > Summary:
 >
