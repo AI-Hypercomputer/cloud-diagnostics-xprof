@@ -48,7 +48,7 @@ def get_package_version(
     found or the version could not be determined.
   """
   try:
-    version = metadata.version(package_name)
+    version = metadata.version(package_name).replace('.', '-')
     if verbose:
       print(f'Version of {package_name} is `{version}`.')
     return version
