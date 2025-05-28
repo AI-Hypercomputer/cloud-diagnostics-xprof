@@ -20,11 +20,13 @@ that are specific to the the xprof instance.
 """
 
 import argparse
+import ast
 from collections.abc import Mapping, Sequence
 import json
 import time
 import uuid
 
+from google.cloud import storage
 from cloud_diagnostics_xprof.actions import action
 from cloud_diagnostics_xprof.actions import delete_action
 from cloud_diagnostics_xprof.actions import list_action
@@ -49,12 +51,11 @@ Instance is hosted at {VM_NAME} VM.
 _TB_LAUNCHED_LABEL = 'tb_launched_ts'
 _TB_BACKEND_LABEL = 'tb_backend_id'
 _TB_ATTEMPTS_LABEL = 'tb_attempts_count'
+_STARTUP_SCRIPT_BEGIN_LABEL = 'startup_script_begin_ts'
 _MAX_TB_ATTEMPTS = 19
 
 _STARTUP_SCRIPT_STRING = r"""#! /bin/bash
 STARTUP_SCRIPT_BEGIN_TS=$(date +%s)
-gcloud compute instances add-labels {MY_INSTANCE_NAME} --zone={ZONE} --labels startup_script_begin=\"\$STARTUP_SCRIPT_BEGIN_TS\"
-
 echo \"Starting setup.\"
 apt-get update
 apt-get install -yq git supervisor python3 python3-pip python3-distutils python3-virtualenv
@@ -74,14 +75,12 @@ for (( attempt=1; attempt < {MAX_TB_ATTEMPTS}; attempt++ )); do
     if [[ \"\$p_out\" == *\"tensorboardvenv\"* ]]; then
         echo \"\$(date): TensorBoard running.\"
         TB_LAUNCHED_TS=\$(date +%s)
-        gcloud compute instances add-labels {MY_INSTANCE_NAME} --zone={ZONE} --labels {TB_LAUNCHED_LABEL}=\"\$TB_LAUNCHED_TS\"
         break
     else
         sleep 3
     fi
 done
-# Label VM with the total number of attempts to launch TB.
-gcloud compute instances add-labels {MY_INSTANCE_NAME} --zone={ZONE} --labels {TB_ATTEMPTS_LABEL}=\"\$attempt\"
+
 if [[ \"\$attempt\" -ge {MAX_TB_ATTEMPTS} ]]; then
     echo \"TensorBoard failed to launch after multiple attempts.\"
     exit 1
@@ -143,9 +142,8 @@ docker run -d \
 \"\${CONTAINER_URL}\" &
 echo \"Setting endpoint info in metadata.\"
 # Show command to user.
-# Label set regardless of BACKEND_ID value.
-gcloud compute instances add-labels {MY_INSTANCE_NAME} --zone={ZONE} --labels {TB_BACKEND_LABEL}=\"\${BACKEND_ID}\"
-echo \"Labeled VM with key: `{TB_BACKEND_LABEL}`.\"
+JSON_OUTPUT=\$(python3 -c \"import sys; data=dict(); data['{STARTUP_SCRIPT_BEGIN_LABEL}']=sys.argv[1]; data['{TB_LAUNCHED_LABEL}']=sys.argv[2]; data['{TB_ATTEMPTS_LABEL}']=sys.argv[3]; data['{TB_BACKEND_LABEL}']=sys.argv[4]; print(data)\" \"\$STARTUP_SCRIPT_BEGIN_TS\" \"\$TB_LAUNCHED_TS\" \"\$attempt\" \"\${BACKEND_ID}\")
+echo -e \"\${JSON_OUTPUT}\" > startup_output.json
 echo \"Startup Finished\"
 """
 
@@ -154,7 +152,8 @@ echo \"Startup Finished\"
 _STARTUP_ENTRY_STRING: str = r"""#! /bin/bash
 python3 -c "print(r'''{STARTUP_SCRIPT_STRING}''')" > startup.sh
 chmod 775 startup.sh
-. ./startup.sh > startup.log
+. ./startup.sh > startup_output.log
+gsutil cp startup_output* {LOG_DIRECTORY}/{INSTANCE_NAME}
 """
 
 # Used for creating the VM instance.
@@ -335,55 +334,33 @@ class Create(action.Command):
 
     return create_vm_command
 
-  def _build_describe_command(
+  def _build_add_labels_command(
       self,
       args: argparse.Namespace,
-      extra_args: Mapping[str, str | None] | None = None,
-      verbose: bool = False,
+      labels: dict[str, str],
   ) -> Sequence[str]:
-    """Builds the describe command.
-
-    Note this should not be called directly by the user and should be called
-    by the run() method in the action module (using the subparser).
+    """Builds the add labels command.
 
     Args:
       args: The arguments parsed from the command line.
-      extra_args: Any extra arguments to pass to the command.
-      verbose: Whether to print the command and other output.
+      labels: key value pairs to add as labels.
 
     Returns:
-      The command to describe the VM.
+      The command to add labels to the VM.
     """
-    # Make sure we define this if not already since we'll build from it.
-    if extra_args is None:
-      extra_args = {}
-
-    # Include our extra args for creation (overwriting any user provided).
-    extra_args |= _DEFAULT_EXTRA_ARGS_DESCRIBE
-
-    describe_vm_command = [
+    labels = [f'{k}={v}' for k, v in labels.items()]
+    labels_string = ','.join(labels)
+    add_labels_command = [
         self.GCLOUD_COMMAND,
         'compute',
         'instances',
-        'describe',
+        'add-labels',
         self.vm_name,
+        f'--labels={labels_string}',
+        f'--zone={args.zone}',
     ]
-    if args.zone:
-      describe_vm_command.append(f'--zone={args.zone}')
 
-    # Extensions of any other arguments to the main command.
-    if extra_args:
-      describe_vm_command.extend(
-          [
-              f'{arg}={value}' if value else f'{arg}'
-              for arg, value in extra_args.items()
-          ]
-      )
-
-    if verbose:
-      print(describe_vm_command)
-
-    return describe_vm_command
+    return add_labels_command
 
   def _delete_vm(
       self,
@@ -645,44 +622,49 @@ class Create(action.Command):
     print('Waiting for instance to be created. It can take a few minutes.')
     has_tb_backend_id = False
     backend_id: str | None = None
-    vm_labels_final_values: dict[str, str | None] = {}
     while timer < _MAX_WAIT_TIME_IN_SECONDS:
       time.sleep(_WAIT_TIME_IN_SECONDS)
       timer += _WAIT_TIME_IN_SECONDS
       # Extra args are separately needed for the describe command.
+      json_output = dict()
       try:
-        command = self._build_describe_command(
-            args=args,
-            extra_args=None,
-            verbose=verbose,
-        )
+        client = storage.Client()
+        bucket_name = self._bucket_from_log_directory(args.log_directory)
+        file_path = self._filepath_from_log_directory(args.log_directory)
+        bucket = client.bucket(bucket_name)
         if verbose:
-          print(f'{timer} seconds have passed of {_MAX_WAIT_TIME_IN_SECONDS}.')
-          print(f'Command to run: {command}')
-        stdout_describe = self._run_command(command, verbose=verbose)
-        json_output = json.loads(stdout_describe)
+          print(f'bucket: {bucket}')
+          print(f'file: {file_path}')
+        if storage.Blob(bucket=bucket, name=file_path).exists(client):
+          json_output = storage.Blob(
+              bucket=bucket, name=file_path
+          ).download_as_string(client)
+          json_output = json_output.decode('utf-8')
+          json_output = ast.literal_eval(json_output)
+          if verbose:
+            print(f'json_output: {json_output}')
       except ValueError as e:
-        print(f'Error caught running command to describe VM: {e}')
-        json_output = {}
+        print(f'Error while reading output json from VM: {e}')
         break
 
-      vm_labels = json_output.get('labels', {})
-      if verbose:
-        print(f'JSON labels: \n{vm_labels}')
+      if not json_output:
+        continue
 
-      # Store the latest values of the labels.
-      vm_labels_final_values[_TB_LAUNCHED_LABEL] = vm_labels.get(
-          _TB_LAUNCHED_LABEL
+      # Add labels to the VM.
+      add_labels_command = self._build_add_labels_command(
+          args=args, labels=json_output
       )
-      vm_labels_final_values[_TB_BACKEND_LABEL] = vm_labels.get(
-          _TB_BACKEND_LABEL
+      if verbose:
+        print(f'Running command: {add_labels_command}')
+      add_labels_command_output = self._run_command(
+          add_labels_command, verbose=verbose
       )
+      if verbose:
+        print(f'add_labels_command_output: {add_labels_command_output}')
 
       # Must have both labels & backend id must have a value.
       has_tb_backend_id = (
-          vm_labels
-          and vm_labels_final_values[_TB_LAUNCHED_LABEL]
-          and vm_labels_final_values[_TB_BACKEND_LABEL]
+          json_output[_TB_LAUNCHED_LABEL] and json_output[_TB_BACKEND_LABEL]
       )
 
       if verbose:
@@ -690,13 +672,13 @@ class Create(action.Command):
 
       # Exit if we've reached the max number of attempts for TensorBoard server.
       if (
-          _TB_ATTEMPTS_LABEL in vm_labels
-          and int(vm_labels[_TB_ATTEMPTS_LABEL]) >= _MAX_TB_ATTEMPTS
+          _TB_ATTEMPTS_LABEL in json_output
+          and int(json_output[_TB_ATTEMPTS_LABEL]) >= _MAX_TB_ATTEMPTS
       ):
         raise RuntimeError('Unable to start backend server.')
 
       if has_tb_backend_id:
-        backend_id = json_output['labels']['tb_backend_id']
+        backend_id = json_output[_TB_BACKEND_LABEL]
         break
 
     # Print out information since creation was successful.
@@ -716,18 +698,6 @@ class Create(action.Command):
       print(
           'Timed out waiting for instance to be set up.\n'
       )
-
-      # Print out specific failure (if any that can be enumerated).
-      if verbose:
-        print('Final label values:')
-        for label, value in vm_labels_final_values.items():
-          print(f'{label}={value}')
-        # Specifically check if the backend id is not set.
-        backend_id_value = vm_labels_final_values.get(_TB_BACKEND_LABEL)
-        if backend_id_value:
-          print(f'TensorBoard backend ID was set to `{backend_id_value=}`')
-        else:
-          print(f'TensorBoard backend ID was not set. `{backend_id_value=}`')
 
       # Delete the VM that was created unless user specified otherwise.
       if args.auto_delete_on_failure_off:
@@ -779,6 +749,17 @@ class Create(action.Command):
     # No display string is needed for the create command.
     return None
 
+  def _bucket_from_log_directory(self, log_directory: str) -> str:
+    """Returns the bucket name from the log directory."""
+    return log_directory.split('/')[2]
+
+  def _filepath_from_log_directory(self, log_directory: str) -> str:
+    """Returns the file name from the log directory."""
+    file_path = '/'.join(log_directory.split('/')[3:])
+    if file_path:
+      return file_path + '/' + self.vm_name + '/startup_output.json'
+    return self.vm_name + '/startup_output.json'
+
 
 def startup_script_string(log_directory: str, vm_name: str, zone: str) -> str:
   """Returns the startup script string."""
@@ -795,10 +776,14 @@ def startup_script_string(log_directory: str, vm_name: str, zone: str) -> str:
           CONTAINER_NAME='{CONTAINER_NAME}',
           CONTAINER_URL='{CONTAINER_URL}',
           RESULT_JSON='{RESULT_JSON}',
+          JSON_OUTPUT='{JSON_OUTPUT}',
           TB_LAUNCHED_LABEL=_TB_LAUNCHED_LABEL,
           TB_BACKEND_LABEL=_TB_BACKEND_LABEL,
           TB_ATTEMPTS_LABEL=_TB_ATTEMPTS_LABEL,
           MAX_TB_ATTEMPTS=_MAX_TB_ATTEMPTS,
+          STARTUP_SCRIPT_BEGIN_LABEL=_STARTUP_SCRIPT_BEGIN_LABEL,
           TENSORBOARD_PLUGIN_PROFILE_VERSION=_TENSORBOARD_PLUGIN_PROFILE_VERSION,
-      )
+      ),
+      INSTANCE_NAME=vm_name,
+      LOG_DIRECTORY=log_directory,
   )
