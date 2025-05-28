@@ -23,9 +23,45 @@ import abc
 import argparse
 from collections.abc import Mapping, Sequence
 import dataclasses
+from importlib import metadata
 import re
 import subprocess
 import tabulate
+
+
+def get_package_version(
+    package_name: str,
+    version_default: str = 'unknown',
+    *,
+    verbose: bool = False,
+) -> str:
+  """Gets the version of the installed package.
+
+  Args:
+    package_name: The name of the package to get the version of.
+    version_default: The default version to return if the package could not be
+      found or the version could not be determined.
+    verbose: Whether to print information about package version gathered.
+
+  Returns:
+    The version of the package or an error message if the package could not be
+    found or the version could not be determined.
+  """
+  try:
+    version = metadata.version(package_name)
+    if verbose:
+      print(f'Version of {package_name} is `{version}`.')
+    return version
+  except metadata.PackageNotFoundError:
+    version = version_default
+    package_not_found_error = (
+        f'{package_name} package not found'
+        ' or version could not be determined.'
+    )
+    print(package_not_found_error)
+    if verbose:
+      print(f'Reverting to default version: {version_default}')
+    return version
 
 
 class Command(abc.ABC):
@@ -41,7 +77,9 @@ class Command(abc.ABC):
   )
   LOG_DIRECTORY_LABEL_KEY = 'xprofiler_log_directory'
   XPROFILER_VERSION_LABEL_KEY = 'xprofiler_version'
-  XPROFILER_VERSION = 'v0-0-13'
+  XPROFILER_VERSION = get_package_version(
+      package_name='cloud-diagnostics-xprof'
+  )
   LOG_DIRECTORY_LABEL_KEY_N_SECTIONS = f'{LOG_DIRECTORY_LABEL_KEY}-n_sections'
 
   @dataclasses.dataclass(frozen=True)
