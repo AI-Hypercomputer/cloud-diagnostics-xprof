@@ -14,7 +14,7 @@
 
 [project]
 name = "cloud-diagnostics-xprof"
-version = "0.0.14"
+version = "0.0.15"
 authors = [
   { name="Hypercompute Diagon", email="hypercompute-diagon@google.com" },
 ]
