@@ -54,12 +54,12 @@ def get_package_version(
     return version
   except metadata.PackageNotFoundError:
     version = version_default
-    package_not_found_error = (
-        f'{package_name} package not found'
-        ' or version could not be determined.'
-    )
-    print(package_not_found_error)
     if verbose:
+      package_not_found_error = (
+          f'{package_name} package not found'
+          ' or version could not be determined.'
+      )
+      print(package_not_found_error)
       print(f'Reverting to default version: {version_default}')
     return version
 
