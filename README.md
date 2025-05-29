@@ -45,8 +45,12 @@ Running the initial `gcloud` setup will ensure things like your default project
 ID are set.
 
 ```bash
+# setup project context
 gcloud init
-gcloud auth login
+# setup auth for gcloud
+gcloud auth
+# Setup auth for client libraries
+gcloud auth application-default login
 ```
 
 ### Setup cloud-diagnostic-xprof Package
