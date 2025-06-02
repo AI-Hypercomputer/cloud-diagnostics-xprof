@@ -123,8 +123,8 @@ For instance, all the profile as organized below would be loaded in our example:
 * `gs://<bucket-name>/run2/plugins/profile/session1/<profile.xplane.pb`
 
 Specifying `gs://<bucket-name>` during `xprofiler create` will allow users to
-view all of these profiles in Tensorboard. They will see all runs in the
-dropdown menu as `run1-session1`, `run1-session2`, and `run2-session1`.
+view all of these profiles in TensorBoard. They will see all runs in the
+dropdown menu as `run1/session1`, `run1/session2`, and `run2/session1`.
 
 ##### GCS Paths for Profile Capture
 
