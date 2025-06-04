@@ -517,6 +517,9 @@ class Create(action.Command):
     # Will raise an error if args are determined to be invalid.
     self._validate_run_args(args=args, verbose=verbose)
 
+    # Remove trailing slash from log directory.
+    # This avoid extra layer of subdirectory while copying to GCS.
+    args.log_directory = args.log_directory.rstrip('/')
     if args.vm_name:
       self.vm_name = args.vm_name
 
