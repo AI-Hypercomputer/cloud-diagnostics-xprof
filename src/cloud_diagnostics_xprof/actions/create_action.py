@@ -26,6 +26,7 @@ import json
 import time
 import uuid
 
+from google.auth import exceptions
 from google.cloud import storage
 from cloud_diagnostics_xprof.actions import action
 from cloud_diagnostics_xprof.actions import delete_action
@@ -33,8 +34,9 @@ from cloud_diagnostics_xprof.actions import list_action
 
 # Frozen to specific version of tensorboard-plugin-profile; updated periodically
 # Note used for install and adding to metadata + label.
-_TENSORBOARD_PLUGIN_PROFILE_VERSION = '2.19.5'
+_TENSORBOARD_PLUGIN_PROFILE_VERSION = '2.19.9'
 
+_DEP_INSTALL_URL = 'https://github.com/AI-Hypercomputer/cloud-diagnostics-xprof/blob/main/README.md#install-dependencies'
 _WAIT_TIME_IN_SECONDS = 20
 _MAX_WAIT_TIME_IN_SECONDS = 300
 
@@ -649,6 +651,9 @@ class Create(action.Command):
       except ValueError as e:
         print(f'Error while reading output json from VM: {e}')
         break
+      except exceptions.RefreshError as e:
+        print(f'{e}\n Kindly visit {_DEP_INSTALL_URL}')
+        break
 
       if not json_output:
         continue
@@ -699,7 +704,7 @@ class Create(action.Command):
       )
     else:  # Setup failed; perform any cleanup.
       print(
-          'Timed out waiting for instance to be set up.\n'
+          'Unable to set up instance. Initiating cleanup.\n'
       )
 
       # Delete the VM that was created unless user specified otherwise.
