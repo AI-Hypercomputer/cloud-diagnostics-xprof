@@ -20,7 +20,7 @@ using the `xprofiler create` command.
 """
 
 import argparse
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 import json
 from typing import Any
 
@@ -33,6 +33,27 @@ class List(action.Command):
   _PROXY_URL = (
       'https://{backend_id}-dot-{region}.notebooks.googleusercontent.com'
   )
+
+  # Specific output for Pod(s) returned by `kubectl get pods`.
+  _POD_OUTPUT_FORMAT = (
+      'NAME:.metadata.name'
+      ',NAMESPACE:.metadata.namespace'
+      ',STATUS:.status.phase'
+  )
+
+  # This is assumed to be correct after creation has been made.
+  _POD_LABELS_FROM_ARGS = {
+      'zones',
+      'region',
+      'xprofiler_version',
+      'tensorboard_plugin_profile',
+  }
+  _POD_ANNOTATIONS_FROM_ARGS = {
+      'log-directory',
+      'proxy-url',
+      'tensorboard-plugin-profile',
+      'xprofiler-version',
+  }
 
   def __init__(self):
     super().__init__(
@@ -73,7 +94,16 @@ class List(action.Command):
         '-n',
         nargs='+',  # Allow multiple VM names
         metavar='VM_NAME',
-        help='The name of the VM to list.',
+        help='The name of the VM or Pod to list.',
+    )
+    list_parser.add_argument(
+        '--gke',
+        action='store_true',
+        help=(
+            '[EXPERIMENTAL] List Pod(s) on GKE instead of a VM. '
+            'This is an experimental feature and may change in the future'
+            ' or may be removed completely.'
+        ),
     )
     # Uses key=value format to allow for multiple values
     # e.g. --filter=name=vm1 --filter=name=vm2
@@ -207,16 +237,13 @@ class List(action.Command):
 
     return log_directory_formatted
 
-  def _build_command(
+  def _build_command_gce(
       self,
       args: argparse.Namespace,
       extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) -> Sequence[str]:
-    """Builds the list command.
-
-    Note this should not be called directly by the user and should be called
-    by the run() method in the action module (using the subparser).
+    """Build the list command for GCE.
 
     Args:
       args: The arguments parsed from the command line.
@@ -296,13 +323,171 @@ class List(action.Command):
 
     return list_vms_command
 
-  def run(
+  def _command_gke_all(
+      self,
+      *,
+      verbose: bool = False,
+  ) -> Sequence[str]:
+    """Get the command to list all GKE Pods with no additional filters.
+
+    Args:
+      verbose: Whether to print the command and other output.
+
+    Returns:
+      The command to list the Pod(s).
+    """
+    kubectl_command = [
+        'kubectl',
+        f'--namespace={self.DEFAULT_NAMESPACE}',
+        'get',
+        'pods',
+        '-o',
+        'json',
+    ]
+    if verbose:
+      print(f'Command to list all GKE Pods: {kubectl_command}')
+
+    return kubectl_command
+
+  def _command_gke_pod_names(
+      self,
+      pod_names: Sequence[str],
+      *,
+      verbose: bool = False,
+  ) -> Sequence[str]:
+    """Get the command to list GKE Pods by providing name (no labels).
+
+    Args:
+      pod_names: The names of the Pods to list.
+      verbose: Whether to print the command and other output.
+
+    Returns:
+      The command to list the Pod(s).
+    """
+    kubectl_command = [
+        'kubectl',
+        f'--namespace={self.DEFAULT_NAMESPACE}',
+        'get',
+        'pods',
+        '-o',
+        'json',
+    ]
+    kubectl_command.extend(pod_names)
+    if verbose:
+      print(f'Command to list GKE Pods using pod names: {kubectl_command}')
+
+    return kubectl_command
+
+  def _command_gke_pods_by_labels(
+      self,
+      pod_labels: Sequence[str],
+      *,
+      verbose: bool = False,
+  ) -> Sequence[str]:
+    """Get the command to list GKE Pods by providing labels.
+
+    Args:
+      pod_labels: The labels of the Pods to list.
+      verbose: Whether to print the command and other output.
+
+    Returns:
+      The command to list the Pod(s).
+    """
+    # Base command is `kubectl get pods`.
+    kubectl_command = [
+        'kubectl',
+        f'--namespace={self.DEFAULT_NAMESPACE}',
+        'get',
+        'pods',
+        '-o',
+        'json',
+    ]
+
+    # Combine the labels into a single string.
+    if pod_labels:
+      pod_labels_string = ','.join(pod_labels)
+      kubectl_command.append(f'--selector={pod_labels_string}')
+    else:
+      if verbose:
+        print('No pod labels provided, so no selector will be used.')
+
+    if verbose:
+      print(f'Command to list GKE Pods using labels: {kubectl_command}')
+
+    return kubectl_command
+
+  def _filter_pods_by_log_directory(
+      self,
+      pods: Sequence[Mapping[str, Any]],
+      log_directories: list[str] | None,
+      *,
+      verbose: bool = False,
+  ) -> str:
+    """Parse the Pods (JSON object) and filter out log directories.
+
+    Args:
+      pods: The Pods to filter.
+      log_directories: The log directories to filter by.
+      verbose: Whether to print the command and other output.
+
+    Returns:
+      The filtered Pods as a string of JSON.
+    """
+    # If no log directories are given, then just return the original Pods.
+    if not log_directories:
+      return json.dumps(pods)
+
+    filtered_pods = []
+
+    for pod in pods:
+      log_directory = (
+          pod
+          .get('metadata', {})
+          .get('annotations', {})
+          .get('log-directory', '')
+      )
+      if log_directory in log_directories:
+        if verbose:
+          print(f'Found Pod match via log directory: {log_directory}')
+        filtered_pods.append(pod)
+
+    return json.dumps(filtered_pods)
+
+  def _build_command(
+      self,
+      args: argparse.Namespace,
+      extra_args: Mapping[str, str | None] | None = None,
+      verbose: bool = False,
+  ) -> Sequence[str]:
+    """Builds the list command.
+
+    Note this should not be called directly by the user and should be called
+    by the run() method in the action module (using the subparser).
+
+    Args:
+      args: The arguments parsed from the command line.
+      extra_args: Any extra arguments to pass to the command.
+      verbose: Whether to print the command and other output.
+
+    Returns:
+      The command to list the instance(s)— either (VM(s) or Pod(s).
+    """
+
+    list_instances_command = self._build_command_gce(
+        args,
+        extra_args=extra_args,
+        verbose=verbose,
+    )
+
+    return list_instances_command
+
+  def run_gce_list(
       self,
       args: argparse.Namespace,
       extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) -> str:
-    """Run the command.
+    """Run the GCE command to list VMs.
 
     Args:
       args: The arguments parsed from the command line.
@@ -312,7 +497,6 @@ class List(action.Command):
     Returns:
       The output of the command.
     """
-
     # Run the command and get the output.
     command = self._build_command(args, extra_args, verbose)
     if verbose:
@@ -409,6 +593,161 @@ class List(action.Command):
     result_str = json.dumps(vm_matches)
     return result_str
 
+  def _combine_pod_outputs(
+      self,
+      outputs: Sequence[str],
+      *,
+      verbose: bool = False,
+  ) -> list[dict[str, Any]]:
+    """Combine the output of the different commands into a single JSON object.
+    """
+    pods: list[dict[str, Any]] = []
+    # Keep track of the Pod names to avoid duplicates.
+    pod_names: set[str] = set()
+
+    if verbose:
+      print(f'Number of outputs: {len(outputs)}')
+    for output in outputs:
+      output_as_json = json.loads(output)
+      pod_items = output_as_json.get('items', [output_as_json])
+      if verbose:
+        print(f'Number of Pod items for filter: {len(pod_items)}')
+      for item in pod_items:
+        # Check for (Pod) name
+        name = item.get('metadata', {}).get('name', '')
+        if name and name not in pod_names:
+          pod_names.add(name)
+          # Only keep metadata & status since the rest is likely not relevant.
+          pod_info = {
+              'metadata': item.get('metadata', {}),
+              'status': item.get('status', {}),
+          }
+          pods.append(pod_info)
+
+    return pods
+
+  def run_gke_list(
+      self,
+      args: argparse.Namespace,
+      *,
+      extra_args: Mapping[str, str | None] | None = None,
+      verbose: bool = False,
+  ) -> str:
+    """Run the GKE command to list Pods.
+
+    Args:
+      args: The arguments parsed from the command line.
+      extra_args: Any extra arguments to pass to the command.
+      verbose: Whether to print the command and other output.
+
+    Returns:
+      The output of the command.
+    """
+    # Need to run multiple commands to get the Pod(s) based on user feedback.
+    all_commands: list[Sequence[str]] = []
+    # Collect labels if given in args or extra_args.
+    # Use the args to create the labels if given.
+    pod_labels: list[str] = []
+    for arg, value in args.__dict__.items():
+      if arg in self._POD_LABELS_FROM_ARGS:
+        if value is None:
+          continue
+        # Need to change zones --> zone
+        arg = 'zone' if arg == 'zones' else arg
+        # Since some args might be multiple values, they need to be separated.
+        if isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
+          if verbose:
+            print(f'Found multiple values for {arg=}: {value}')
+          pod_labels.append(f'{arg} in ({",".join(value)})')
+        else:
+          pod_labels.append(f'{arg}={value}')
+
+    if verbose:
+      print(f'Args: {args}')
+      print(f'Pod labels: {pod_labels}')
+    # TODO: b/427786564 - Allow for extra_args to be used for GKE.
+    if pod_labels:
+      if verbose:
+        print(f'Getting Pods using labels: {pod_labels}')
+      command_pod_by_labels = self._command_gke_pods_by_labels(
+          pod_labels=pod_labels,
+          verbose=verbose,
+      )
+      all_commands.append(command_pod_by_labels)
+
+    # Use the 'vm_name' for the Pod names when considering GKE.
+    if args.vm_name:
+      if verbose:
+        print(f'Getting Pods using names: {args.vm_name}')
+      command_pod_by_names = self._command_gke_pod_names(
+          pod_names=args.vm_name,
+          verbose=verbose,
+      )
+      all_commands.append(command_pod_by_names)
+
+    # Use a generic command if no criteria is given (all_commands is empty).
+    if not all_commands:
+      if verbose:
+        print('No criteria given, so using generic command to list all Pods.')
+      command_generic = self._command_gke_all(
+          verbose=verbose,
+      )
+      all_commands.append(command_generic)
+
+    # Read the stdout and parse it into a list of Pod(s).
+    if verbose:
+      print(f'All commands: {all_commands}')
+    all_outputs: list[str] = [
+        self._run_command(command, verbose=False)
+        for command in all_commands
+    ]
+    # Assuming all outputs are JSON, to be processed as a single valid JSON.
+    combined_pod_outputs = self._combine_pod_outputs(
+        outputs=all_outputs,
+        verbose=verbose,
+    )
+
+    # Filter Pods based on log directory (if given)
+    stdout = self._filter_pods_by_log_directory(
+        pods=combined_pod_outputs,
+        log_directories=args.log_directory,
+        verbose=verbose,
+    )
+
+    return stdout
+
+  def run(
+      self,
+      args: argparse.Namespace,
+      extra_args: Mapping[str, str | None] | None = None,
+      verbose: bool = False,
+  ) -> str:
+    """Run the command.
+
+    Args:
+      args: The arguments parsed from the command line.
+      extra_args: Any extra arguments to pass to the command.
+      verbose: Whether to print the command and other output.
+
+    Returns:
+      The output of the command.
+    """
+
+    if args.gke:  # Check if --gke flag given & filter based on GKE Pods.
+      result = self.run_gke_list(
+          args=args,
+          extra_args=extra_args,
+          verbose=verbose,
+      )
+    else:  # Default to GCE VM filtering.
+      result = self.run_gce_list(
+          args=args,
+          extra_args=extra_args,
+          verbose=verbose,
+      )
+
+    return result
+
   def display(
       self,
       display_str: str | None,
@@ -427,64 +766,110 @@ class List(action.Command):
     """
 
     if display_str:
-      data = json.loads(display_str)
-      # Define the columns
-      # Define the columns using the defaults values.
+      if args.gke:
+        data = json.loads(display_str)
+        lines = []
+        for pod in data:
+          name = pod.get('metadata', {}).get('name', '')
+          log_directory = (
+              pod
+              .get('metadata', {})
+              .get('annotations', {})
+              .get('log-directory', '')
+          )
+          proxy_url = (
+              pod
+              .get('metadata', {})
+              .get('annotations', {})
+              .get('proxy-url', '')
+          )
+          zone = (
+              pod
+              .get('metadata', {})
+              .get('labels', {})
+              .get('zone', '')
+          )
 
-      lines = []
-      for vm in data:
-        name = vm.get('name', '')
+          lines.append([
+              log_directory,
+              proxy_url,
+              name,
+              zone,
+          ])
 
-        # Get the log directory from the VM.
-        log_directory_formatted = self.get_log_directory_from_vm(
-            vm,
+        # Display the table string.
+        data_table = self.create_data_table(
+            columns=self.TABLE_COLUMNS,
+            lines=lines,
             verbose=verbose,
         )
-        # Skip VM if no log directory found.
-        if not log_directory_formatted:
-          if verbose:
-            print(
-                'Skip displaying since no log directory found'
-                f' for {name} ({vm}).'
-            )
-          continue
-        # Usually apears in URL format: https://.../zones/us-central1-a
-        zone = (
-            vm
-            .get('zone', '')
-            .split('/')[-1]
-        )
-        # Just the region from the zone. (e.g. us-central1-a -> us-central1)
-        region = '-'.join(
-            zone
-            .split('-')[:-1]
-        )
-        backend_id_formatted = self._PROXY_URL.format(
-            backend_id=(
-                vm
-                .get('labels', {})
-                .get('tb_backend_id')
-            ),
-            region=region,
+
+        formatted_data_table_string = self.display_table_string(
+            data_table=data_table,
+            verbose=verbose,
         )
 
-        lines.append([
-            log_directory_formatted,
-            backend_id_formatted,
-            name,
-            zone,
-        ])
+        print(formatted_data_table_string)
 
-      # Display the table string.
-      data_table = self.create_data_table(
-          columns=self.TABLE_COLUMNS,
-          lines=lines,
-          verbose=verbose,
-      )
+      else:
+        data = json.loads(display_str)
+        # Define the columns
+        # Define the columns using the defaults values.
 
-      formatted_data_table_string = self.display_table_string(
-          data_table=data_table,
-          verbose=verbose,
-      )
+        lines = []
+        for vm in data:
+          name = vm.get('name', '')
 
-      print(formatted_data_table_string)
+          # Get the log directory from the VM.
+          log_directory_formatted = self.get_log_directory_from_vm(
+              vm,
+              verbose=verbose,
+          )
+          # Skip VM if no log directory found.
+          if not log_directory_formatted:
+            if verbose:
+              print(
+                  'Skip displaying since no log directory found'
+                  f' for {name} ({vm}).'
+              )
+            continue
+          # Usually apears in URL format: https://.../zones/us-central1-a
+          zone = (
+              vm
+              .get('zone', '')
+              .split('/')[-1]
+          )
+          # Just the region from the zone. (e.g. us-central1-a -> us-central1)
+          region = '-'.join(
+              zone
+              .split('-')[:-1]
+          )
+          backend_id_formatted = self._PROXY_URL.format(
+              backend_id=(
+                  vm
+                  .get('labels', {})
+                  .get('tb_backend_id')
+              ),
+              region=region,
+          )
+
+          lines.append([
+              log_directory_formatted,
+              backend_id_formatted,
+              name,
+              zone,
+          ])
+
+        # Display the table string.
+        data_table = self.create_data_table(
+            columns=self.TABLE_COLUMNS,
+            lines=lines,
+            verbose=verbose,
+        )
+
+        formatted_data_table_string = self.display_table_string(
+            data_table=data_table,
+            verbose=verbose,
+        )
+
+        print(formatted_data_table_string)

@@ -116,6 +116,7 @@ class Delete(action.Command):
         log_directory=log_directories,
         vm_name=vm_names,
         filter=None,
+        gke=False,
         verbose=verbose,
     )
 
@@ -168,6 +169,7 @@ class Delete(action.Command):
         zones=[zone],
         vm_name=None,
         filter=filter_args,
+        gke=False,
         verbose=verbose,
     )
 

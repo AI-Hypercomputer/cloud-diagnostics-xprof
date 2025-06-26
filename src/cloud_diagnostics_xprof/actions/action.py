@@ -81,6 +81,7 @@ class Command(abc.ABC):
       package_name='cloud-diagnostics-xprof'
   )
   LOG_DIRECTORY_LABEL_KEY_N_SECTIONS = f'{LOG_DIRECTORY_LABEL_KEY}-n_sections'
+  DEFAULT_NAMESPACE = 'xprofiler'
 
   @dataclasses.dataclass(frozen=True)
   class Replacement:

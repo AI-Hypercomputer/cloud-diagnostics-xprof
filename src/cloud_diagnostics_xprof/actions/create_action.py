@@ -781,7 +781,7 @@ spec:
     region = args.zone.rsplit('-', 1)[0]
     yaml_params = dict(
         pod_name=unique_pod_name,
-        namespace='xprofiler',
+        namespace=self.DEFAULT_NAMESPACE,
         xprofiler_version_label_key=self.XPROFILER_VERSION_LABEL_KEY,
         xprofiler_version=self.XPROFILER_VERSION,
         tensorboard_plugin_profile_version=_TENSORBOARD_PLUGIN_PROFILE_VERSION,
