@@ -176,53 +176,143 @@ _DEFAULT_EXTRA_ARGS_DESCRIBE: Mapping[str, str] = {
 class Create(action.Command):
   """A command to delete a xprofiler instance."""
 
-  # TODO: Modify the labels & node selector for service.
-  _BASE_YAML = """apiVersion: apps/v1
-kind: Deployment
+  _BASE_YAML_TEMPLATE = """apiVersion: v1
+kind: Pod
 metadata:
-  name: {deployment_name}
+  name: {pod_name}
   namespace: {namespace}
   labels:
     app: tensorboard
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: tensorboard
-  template:
-    metadata:
-      labels:
-        app: tensorboard
-    spec:
-      serviceAccountName: {service_account_name}
-      containers:
-      - image: {tensorboard_image}
-        imagePullPolicy: Always
-        args: [
-          "tensorboard",
-          "--logdir={log_directory}",
-          "--bind_all",
-          "--port={pod_port}",
-        ]
+  hostNetwork: true
+  serviceAccountName: {service_account_name}
+  initContainers:
+  - name: proxy-init
+    image: google/cloud-sdk:slim
+    command:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        CONFIG_DIR="/etc/proxy-agent"
+        CONFIG_FILE="${{CONFIG_DIR}}/proxy-agent-config.json"
+        ENV_FILE="${{CONFIG_DIR}}/proxy-{pod_name}.env"
+
+        echo "INFO: Creating config directory."
+        mkdir -p ${{CONFIG_DIR}}
+
+        echo "INFO: Copying proxy agent config from GCS..."
+        gcloud storage cp gs://dl-platform-public-configs/proxy-agent-config.json ${{CONFIG_FILE}}
+
+        REGION="{region}"
+        echo "INFO: Extracting proxy URL for region: ${{REGION}}"
+        PROXY_URL=$(python3 -c "import json; print(json.load(open('${{CONFIG_FILE}}'))['agent-docker-containers']['latest']['proxy-urls']['${{REGION}}'][0])")
+        if [ -z "${{PROXY_URL}}" ]; then
+          echo "ERROR: Could not find proxy URL for region ${{REGION}}." >&2
+          exit 1
+        fi
+        echo "INFO: Proxy URL: ${{PROXY_URL}}"
+
+        echo "INFO: Fetching instance identity token from metadata server..."
+        VM_ID=$(curl --fail -s -H 'Metadata-Flavor: Google' "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?format=full&audience=${{PROXY_URL}}/request-endpoint")
+        echo "INFO: VM_ID: ${{VM_ID}}"
+
+        echo "INFO: Requesting backend endpoint from proxy service..."
+        ACCESS_TOKEN=$(gcloud auth print-access-token)
+        RESULT_JSON=$(curl --fail -s -H "Authorization: Bearer ${{ACCESS_TOKEN}}" -H "X-Inverting-Proxy-VM-ID: ${{VM_ID}}" -d "" "${{PROXY_URL}}/request-endpoint")
+        echo "INFO: RESULT_JSON: ${{RESULT_JSON}}"
+
+        BACKEND_ID=$(echo "${{RESULT_JSON}}" | python3 -c "import json, sys; print(json.load(sys.stdin)['backendID'])")
+        echo "INFO: BACKEND_ID: ${{BACKEND_ID}}"
+
+        HOSTNAME=$(echo "${{RESULT_JSON}}" | python3 -c "import json, sys; print(json.load(sys.stdin)['hostname'])")
+        echo "INFO: HOSTNAME: ${{HOSTNAME}}"
+
+        echo "INFO: Writing environment file for proxy agent..."
+        # This file will be sourced by the proxy-agent sidecar
+        {{
+          echo "export BACKEND_ID='${{BACKEND_ID}}'"
+          echo "export PROXY='${{PROXY_URL}}/'"
+          echo "export SHIM_WEBSOCKETS='true'"
+          echo "export SHIM_PATH='websocket-shim'"
+          echo "export PORT='{pod_port}'" # Port your TensorBoard is running on
+        }} > ${{ENV_FILE}}
+
+        echo "SUCCESS: Init container finished."
+        echo "Proxy will be available at: https://${{HOSTNAME}}"
+
+    volumeMounts:
+    - name: {proxy_config_volume}
+      mountPath: /etc/proxy-agent
+
+  containers:
+  - name: tensorboard
+    image: {tensorboard_image}
+    args: [
+      "tensorboard",
+      "--logdir={log_directory}",
+      "--bind_all",
+      "--port={pod_port}",
+    ]
+    ports:
+    - containerPort: {pod_port}
+    volumeMounts:
+    - name: {tensorboard_logs_volume}
+      mountPath: /tmp
+
+  # Sources environment file created by init container & then starts the agent.
+  # See https://github.com/google/inverting-proxy/blob/master/agent/Dockerfile
+  - name: proxy-agent
+    image: gcr.io/inverting-proxy/agent:latest
+    # It sources the environment variables and then executes the agent
+    # binary with the required command-line flags.
+    command:
+      - /bin/bash
+      - -c
+      - |
+        # Use shell safety features
+        set -euo pipefail
+
+        # Load the dynamic variables from the file created by the init container
+        echo "INFO: Sourcing environment from /etc/proxy-agent/proxy-{pod_name}.env"
+        source /etc/proxy-agent/proxy-{pod_name}.env
+
+        # The 'exec' command replaces the shell process with the agent process,
+        # which is a best practice for running applications in containers.
+        echo "INFO: Starting proxy-forwarding-agent with configured flags..."
+        # Omitting other flags to use their default values from the Dockerfile
+        exec /opt/bin/proxy-forwarding-agent \
+          "--proxy=${{PROXY}}" \
+          "--backend=${{BACKEND_ID}}" \
+          "--host=localhost:${{PORT}}" \
+          "--shim-websockets=${{SHIM_WEBSOCKETS}}" \
+          "--shim-path=${{SHIM_PATH}}"
+    volumeMounts:
+    - name: {proxy_config_volume}
+      mountPath: /etc/proxy-agent
+      readOnly: true
+
+  volumes:
+  # Shared between the init and proxy-agent containers; passes dynamic config.
+  - name: {proxy_config_volume}
+    emptyDir: {{}}
+  # Contains TensorBoard logs.
+  - name: {tensorboard_logs_volume}
+    persistentVolumeClaim:
+      claimName: {tensorboard_logs_volume}-pvc
 ---
 apiVersion: v1
-kind: Service
+kind: PersistentVolumeClaim
 metadata:
-  name: {service_name}
+  name: {tensorboard_logs_volume}-pvc
   namespace: {namespace}
-  labels:
-    app: tensorboard
 spec:
-  selector:
-    app: tensorboard
-  ports:
-    - protocol: TCP
-      port: {service_port}
-      targetPort: {target_port}
-      name: http
-  type: ClusterIP
-"""
-
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {tensorboard_logs_volume_size}
+  """
   def __init__(self):
     super().__init__(
         name='create',
@@ -542,16 +632,25 @@ spec:
       self,
       yaml_template: str,
       yaml_params: Mapping[str, str],
+      *,
+      verbose: bool = False,
   ) -> str:
     """Builds the YAML file for the GKE creation.
 
     Args:
       yaml_template: The YAML template to use.
       yaml_params: The parameters to use for the YAML template.
+      verbose: Whether to print the command and other output.
 
     Returns:
       The YAML string for the GKE creation.
     """
+
+    if verbose:
+      print('====YAML TEMPLATE===')
+      print(yaml_template)
+      print('====YAML PARAMS===')
+      print(yaml_params)
 
     yaml_string = yaml_template.format(**yaml_params)
 
@@ -576,25 +675,31 @@ spec:
     all_outputs: list[str] = []
     ### STEPS ###
     # Build the YAML file from args inputed.
-    unique_deployment_name = (
-        'xprofiler-deployment'
+    unique_pod_name = (
+        'xprofiler-pod'
         f'-{date.today().strftime("%Y%m%d%H%M%S")}'
         f'-{uuid.uuid4()}'
     )
+    # Get region from the zone in args by ignoring the last dash-separated part.
+    region = args.zone.rsplit('-', 1)[0]
     yaml_params = dict(
-        deployment_name=unique_deployment_name,
+        pod_name=unique_pod_name,
+        namespace='xprofiler',
+        service_account_name='xprofiler',
+        region=region,
         log_directory=args.log_directory,
-        namespace='tb-namespace',
-        service_account_name='xprof-tb-ksa',
         tensorboard_image='us-central1-docker.pkg.dev/deeplearning-images/reproducibility/xprofiler:temp',
         pod_port='9001',
-        service_name='tb-service',
-        target_port='tb-web-port',
-        service_port='80',
+        tensorboard_logs_volume='xprofiler-tensorboard-logs',
+        proxy_config_volume='xprofiler-proxy-config',
+        tensorboard_logs_volume_size='10Gi',
     )
+    # Read in YAML template file as a string.
+    yaml_template = self._BASE_YAML_TEMPLATE
     yaml_string = self._build_yaml(
-        yaml_template=self._BASE_YAML,
+        yaml_template=yaml_template,
         yaml_params=yaml_params,
+        verbose=verbose,
     )
     if verbose:
       print('====YAML STRING===')
