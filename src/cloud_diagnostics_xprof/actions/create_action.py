@@ -185,7 +185,9 @@ metadata:
   name: {pod_name}
   namespace: {namespace}
   labels:
-    app: tensorboard
+    app: xprofiler
+    {xprofiler_version_label_key}: {xprofiler_version}
+    tensorboard_plugin_profile: {tensorboard_plugin_profile_version}
 spec:
   hostNetwork: true
   serviceAccountName: {service_account_name}
@@ -753,6 +755,9 @@ spec:
     yaml_params = dict(
         pod_name=unique_pod_name,
         namespace='xprofiler',
+        xprofiler_version_label_key=self.XPROFILER_VERSION_LABEL_KEY,
+        xprofiler_version=self.XPROFILER_VERSION,
+        tensorboard_plugin_profile_version=_TENSORBOARD_PLUGIN_PROFILE_VERSION,
         service_account_name='xprofiler',
         region=region,
         log_directory=args.log_directory,
