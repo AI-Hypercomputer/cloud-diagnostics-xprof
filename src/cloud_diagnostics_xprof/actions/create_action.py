@@ -22,6 +22,7 @@ that are specific to the the xprof instance.
 import argparse
 import ast
 from collections.abc import Mapping, Sequence
+from datetime import date
 import json
 import tempfile
 import time
@@ -179,7 +180,7 @@ class Create(action.Command):
   _BASE_YAML = """apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: tensorboard-deployment
+  name: {deployment_name}
   namespace: {namespace}
   labels:
     app: tensorboard
@@ -195,8 +196,7 @@ spec:
     spec:
       serviceAccountName: {service_account_name}
       containers:
-      - name: {tb_container_name}
-        image: {tensorboard_image}
+      - image: {tensorboard_image}
         imagePullPolicy: Always
         args: [
           "tensorboard",
@@ -540,45 +540,20 @@ spec:
 
   def _build_yaml(
       self,
-      xprof_name: str,
-      log_directory: str,
-      namespace: str = 'xprofiler',
-      service_account_name: str = 'xprofiler',
-      tensorboard_image: str = 'us-central1-docker.pkg.dev/deeplearning-images/reproducibility/xprofiler:temp',
-      pod_port: str = '9001',
-      service_name: str = 'xprofiler',
-      target_port: str = 'tb-web-port',
-      service_port: str = '80',
+      yaml_template: str,
+      yaml_params: Mapping[str, str],
   ) -> str:
     """Builds the YAML file for the GKE creation.
 
     Args:
-      xprof_name: The name of the xprof instance.
-      log_directory: The GCS path to the log directory.
-      namespace: The namespace for the GKE deployment.
-      service_account_name: The service account name for the GKE deployment.
-      tensorboard_image: The TensorBoard image to use.
-      pod_port: The port to use for the pod.
-      service_name: The name of the service.
-      target_port: The target port for the service.
-      service_port: The port for the service.
+      yaml_template: The YAML template to use.
+      yaml_params: The parameters to use for the YAML template.
 
     Returns:
       The YAML string for the GKE creation.
     """
 
-    # TODO: Add the ability to pass in the YAML file.
-    yaml_string = self._BASE_YAML.format(
-        tb_container_name=xprof_name,
-        namespace=namespace,
-        service_account_name=service_account_name,
-        tensorboard_image=tensorboard_image,
-        log_directory=log_directory,
-        pod_port=pod_port,
-        service_name=service_name,
-        target_port=target_port,
-        service_port=service_port,
-    )
+    yaml_string = yaml_template.format(**yaml_params)
 
     return yaml_string
 
@@ -601,9 +576,25 @@ spec:
     all_outputs: list[str] = []
     ### STEPS ###
     # Build the YAML file from args inputed.
-    yaml_string = self._build_yaml(
-        xprof_name=f'xprofiler-gke-{uuid.uuid4()}',
+    unique_deployment_name = (
+        'xprofiler-deployment'
+        f'-{date.today().strftime("%Y%m%d%H%M%S")}'
+        f'-{uuid.uuid4()}'
+    )
+    yaml_params = dict(
+        deployment_name=unique_deployment_name,
         log_directory=args.log_directory,
+        namespace='tb-namespace',
+        service_account_name='xprof-tb-ksa',
+        tensorboard_image='us-central1-docker.pkg.dev/deeplearning-images/reproducibility/xprofiler:temp',
+        pod_port='9001',
+        service_name='tb-service',
+        target_port='tb-web-port',
+        service_port='80',
+    )
+    yaml_string = self._build_yaml(
+        yaml_template=self._BASE_YAML,
+        yaml_params=yaml_params,
     )
     if verbose:
       print('====YAML STRING===')
