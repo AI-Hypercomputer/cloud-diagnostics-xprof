@@ -23,6 +23,7 @@ import argparse
 import ast
 from collections.abc import Mapping, Sequence
 import json
+import tempfile
 import time
 import uuid
 
@@ -174,6 +175,54 @@ _DEFAULT_EXTRA_ARGS_DESCRIBE: Mapping[str, str] = {
 class Create(action.Command):
   """A command to delete a xprofiler instance."""
 
+  # TODO: Modify the labels & node selector for service.
+  _BASE_YAML = """apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tensorboard-deployment
+  namespace: {namespace}
+  labels:
+    app: tensorboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tensorboard
+  template:
+    metadata:
+      labels:
+        app: tensorboard
+    spec:
+      serviceAccountName: {service_account_name}
+      containers:
+      - name: {tb_container_name}
+        image: {tensorboard_image}
+        imagePullPolicy: Always
+        args: [
+          "tensorboard",
+          "--logdir={log_directory}",
+          "--bind_all",
+          "--port={pod_port}",
+        ]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {service_name}
+  namespace: {namespace}
+  labels:
+    app: tensorboard
+spec:
+  selector:
+    app: tensorboard
+  ports:
+    - protocol: TCP
+      port: {service_port}
+      targetPort: {target_port}
+      name: http
+  type: ClusterIP
+"""
+
   def __init__(self):
     super().__init__(
         name='create',
@@ -230,6 +279,15 @@ class Create(action.Command):
         action='store_true',
         help=(
             'Will not delete the VM if failure occurs.'
+        ),
+    )
+    create_parser.add_argument(
+        '--gke',
+        action='store_true',
+        help=(
+            '[EXPERIMENTAL] Create a Pod on GKE instead of a VM. '
+            'This is an experimental feature and may change in the future'
+            ' or may be removed completely.'
         ),
     )
     create_parser.add_argument(
@@ -480,13 +538,57 @@ class Create(action.Command):
         zones.append(line.strip())
     return zones
 
-  def run(
+  def _build_yaml(
+      self,
+      xprof_name: str,
+      log_directory: str,
+      namespace: str = 'xprofiler',
+      service_account_name: str = 'xprofiler',
+      tensorboard_image: str = 'us-central1-docker.pkg.dev/deeplearning-images/reproducibility/xprofiler:temp',
+      pod_port: str = '9001',
+      service_name: str = 'xprofiler',
+      target_port: str = 'tb-web-port',
+      service_port: str = '80',
+  ) -> str:
+    """Builds the YAML file for the GKE creation.
+
+    Args:
+      xprof_name: The name of the xprof instance.
+      log_directory: The GCS path to the log directory.
+      namespace: The namespace for the GKE deployment.
+      service_account_name: The service account name for the GKE deployment.
+      tensorboard_image: The TensorBoard image to use.
+      pod_port: The port to use for the pod.
+      service_name: The name of the service.
+      target_port: The target port for the service.
+      service_port: The port for the service.
+
+    Returns:
+      The YAML string for the GKE creation.
+    """
+
+    # TODO: Add the ability to pass in the YAML file.
+    yaml_string = self._BASE_YAML.format(
+        tb_container_name=xprof_name,
+        namespace=namespace,
+        service_account_name=service_account_name,
+        tensorboard_image=tensorboard_image,
+        log_directory=log_directory,
+        pod_port=pod_port,
+        service_name=service_name,
+        target_port=target_port,
+        service_port=service_port,
+    )
+
+    return yaml_string
+
+  def run_gke_creation(
       self,
       args: argparse.Namespace,
       extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
   ) -> str:
-    """Run the command.
+    """Runs the GKE creation.
 
     Args:
       args: The arguments parsed from the command line.
@@ -495,30 +597,46 @@ class Create(action.Command):
 
     Returns:
       The output of the command.
-
-    Raises:
-      RuntimeError: If the backend server cannot be started.
     """
-    # Overwrite args and rebuild extra_args (no shared params)
-    # This makes sure we don't have conflict when given to the main command.
-    if extra_args is not None:
-      extra_args_to_remove = []
-      for key in args.__dict__.keys():
-        # Need to get the extra_args formatted key (includes the `--`)
-        key_extra_args_formatted = action.flag_from_string(key)
-        # Move the key-value to main args if it exists in extra_args.
-        if key_extra_args_formatted in extra_args:
-          args.__dict__[key] = extra_args[key_extra_args_formatted]
-          extra_args_to_remove.append(key_extra_args_formatted)
-      # Rebuild extra_args to remove the keys that were moved to args.
-      extra_args = {
-          key: value for key, value in extra_args.items()
-          if key not in extra_args_to_remove
-      }
+    all_outputs: list[str] = []
+    ### STEPS ###
+    # Build the YAML file from args inputed.
+    yaml_string = self._build_yaml(
+        xprof_name=f'xprofiler-gke-{uuid.uuid4()}',
+        log_directory=args.log_directory,
+    )
+    if verbose:
+      print('====YAML STRING===')
+      print(yaml_string)
+    with tempfile.NamedTemporaryFile(delete=False, mode='w') as yaml_file:
+      yaml_file.write(yaml_string)
+      yaml_file.flush()
+    # Create the pod/deployment
+    create_pod_command = [
+        'kubectl',
+        'apply',
+        '-f',
+        yaml_file.name,
+    ]
+    create_pod_output = self._run_command(create_pod_command, verbose=verbose)
+    all_outputs.append(create_pod_output)
+    if verbose:
+      print('====POD CREATION COMMAND===')
+      print(create_pod_command)
+      print('====POD CREATION OUTPUT===')
+      print(create_pod_output)
+    # Verify the pod/deployment was created successfully
+    # Display the pod/deployment to the user
+    # Give the URL to access TB
 
-    # Will raise an error if args are determined to be invalid.
-    self._validate_run_args(args=args, verbose=verbose)
+    return '\n'.join(all_outputs)
 
+  def run_gce_creation(
+      self,
+      args: argparse.Namespace,
+      extra_args: Mapping[str, str | None] | None = None,
+      verbose: bool = False,
+  ) -> str:
     # Remove trailing slash from log directory.
     # This avoid extra layer of subdirectory while copying to GCS.
     args.log_directory = args.log_directory.rstrip('/')
@@ -737,6 +855,78 @@ class Create(action.Command):
         )
 
     return stdout
+
+  def _args_from_extra_args(
+      self,
+      args: argparse.Namespace,
+      extra_args: Mapping[str, str | None],
+  ) -> tuple[argparse.Namespace, Mapping[str, str | None]]:
+    """Returns the args from the extra args as well as extra_args."""
+    extra_args_to_remove = []
+    new_args = argparse.Namespace()
+
+    for key in args.__dict__.keys():
+      # Need to get the extra_args formatted key (includes the `--`)
+      key_extra_args_formatted = action.flag_from_string(key)
+      # Move the key-value to main args if it exists in extra_args.
+      if key_extra_args_formatted in extra_args:
+        new_args.__dict__[key] = extra_args[key_extra_args_formatted]
+        extra_args_to_remove.append(key_extra_args_formatted)
+      else:
+        new_args.__dict__[key] = getattr(args, key)
+
+    # Rebuild extra_args to remove the keys that were moved to args.
+    new_extra_args = {
+        key: value for key, value in extra_args.items()
+        if key not in extra_args_to_remove
+    }
+
+    return new_args, new_extra_args
+
+  def run(
+      self,
+      args: argparse.Namespace,
+      extra_args: Mapping[str, str | None] | None = None,
+      verbose: bool = False,
+  ) -> str:
+    """Run the command.
+
+    Args:
+      args: The arguments parsed from the command line.
+      extra_args: Any extra arguments to pass to the command.
+      verbose: Whether to print the command and other output.
+
+    Returns:
+      The output of the command.
+
+    Raises:
+      RuntimeError: If the backend server cannot be started.
+    """
+    # Overwrite args and rebuild extra_args (no shared params)
+    # This makes sure we don't have conflict when given to the main command.
+    if extra_args is not None:
+      args, extra_args = self._args_from_extra_args(
+          args=args,
+          extra_args=extra_args,
+      )
+
+    # Will raise an error if args are determined to be invalid.
+    self._validate_run_args(args=args, verbose=verbose)
+
+    if args.gke:  # Check if --gke flag given & use GKE Pod creation.
+      result = self.run_gke_creation(
+          args=args,
+          extra_args=extra_args,
+          verbose=verbose,
+      )
+      return result
+    else:  # Default to GCE VM creation.
+      result = self.run_gce_creation(
+          args=args,
+          extra_args=extra_args,
+          verbose=verbose,
+      )
+      return result
 
   def display(
       self,

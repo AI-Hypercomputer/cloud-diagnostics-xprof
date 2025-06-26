@@ -245,12 +245,10 @@ class Connect(action.Command):
 
     # Extensions of any other arguments to the main command.
     if extra_args:
-      connect_command.extend(
-          [
-              f'{arg}={value}' if value else f'{arg}'
-              for arg, value in extra_args.items()
-            ]
-      )
+      connect_command.extend([
+          f'{arg}={value}' if value else f'{arg}'
+          for arg, value in extra_args.items()
+      ])
 
     if args.use_ssh_proxy:
       connect_command.extend([
