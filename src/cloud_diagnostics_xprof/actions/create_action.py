@@ -175,7 +175,10 @@ _DEFAULT_EXTRA_ARGS_DESCRIBE: Mapping[str, str] = {
 
 class Create(action.Command):
   """A command to delete a xprofiler instance."""
-
+  # To ensure extra args provided by user are consistent with the YAML's format.
+  _YAML_TEMPLATE_REPLACEMENT_FORMAT = {
+      '-': '_',
+  }
   _BASE_YAML_TEMPLATE = """apiVersion: v1
 kind: Pod
 metadata:
@@ -313,6 +316,7 @@ spec:
     requests:
       storage: {tensorboard_logs_volume_size}
   """
+
   def __init__(self):
     super().__init__(
         name='create',
@@ -656,6 +660,70 @@ spec:
 
     return yaml_string
 
+  def _strip_extra_args(
+      self,
+      extra_args: Mapping[str, str | None],
+      *,
+      verbose: bool = False,
+  ) -> Mapping[str, str | None]:
+    """Strip prefix dashes from args and split when value set with equals `=`.
+
+    Args:
+      extra_args: Any extra arguments to be passed to the command.
+      verbose: Whether to print information about changes made to the args.
+
+    Returns:
+      The extra arguments with prefix dashes stripped and split when value set
+      with equals `=`.
+    """
+    stripped_extra_args = {}
+    for arg, value in extra_args.items():
+      if verbose:
+        print(f'Orignal extra_args \n\tArg: {arg} \n\tValue: {value}')
+      # Remove the leading dash from the arg name.
+      new_arg = arg.lstrip('-')
+      # Separate arg from value if `=` is used.
+      if '=' in new_arg:
+        # Assume no more than one `=` as part of the arg name .
+        new_arg, new_value = new_arg.split('=', 1)
+      else:
+        new_value = value
+
+      if verbose:
+        print(f'Stripped extra_args \n\tArg: {new_arg} \n\tValue: {new_value}')
+      stripped_extra_args[new_arg] = new_value
+
+    return stripped_extra_args
+
+  def _extra_args_with_replacements(
+      self,
+      extra_args: Mapping[str, str | None],
+      replacments: Mapping[str, str],
+      *,
+      verbose: bool = False,
+  ) -> Mapping[str, str | None]:
+    """Replaces substrings in arguments from extra_args using replacements.
+
+    Args:
+      extra_args: Any extra arguments to be passed to the main command.
+      replacments: The replacements to make in the arguments.
+      verbose: Whether to print the command and other output.
+
+    Returns:
+      The extra arguments with substrings replaced.
+    """
+    new_extra_args = {}
+    if verbose:
+      print('Replacements to be made to args in extra_args: \n\t{replacments}')
+    # For each arg, make any string replacements found.
+    for arg, value in extra_args.items():
+      for original_string, replacement in replacments.items():
+        arg = arg.replace(original_string, replacement)
+      if verbose:
+        print(f'Extra_args \n\tArg: {arg} \n\tValue: {value}')
+      new_extra_args[arg] = value
+    return new_extra_args
+
   def run_gke_creation(
       self,
       args: argparse.Namespace,
@@ -694,6 +762,28 @@ spec:
         proxy_config_volume='xprofiler-proxy-config',
         tensorboard_logs_volume_size='10Gi',
     )
+    if verbose:
+      print('====(DEFAULT) YAML PARAMS===')
+      print(yaml_params)
+    # Use extra_args to override the YAML parameters.
+    if extra_args:
+      if verbose:
+        print('====EXTRA ARGS===')
+        print(extra_args)
+      stripped_extra_args = self._strip_extra_args(extra_args, verbose=verbose)
+      if verbose:
+        print('====(STRIPPED) EXTRA ARGS===')
+        print(stripped_extra_args)
+      # Update the YAML parameters with the stripped extra args.
+      yaml_formatted_extra_args = self._extra_args_with_replacements(
+          extra_args=stripped_extra_args,
+          replacments=self._YAML_TEMPLATE_REPLACEMENT_FORMAT,
+          verbose=verbose,
+      )
+      yaml_params.update(yaml_formatted_extra_args)
+      if verbose:
+        print('====YAML PARAMS WITH EXTRA ARGS===')
+        print(yaml_params)
     # Read in YAML template file as a string.
     yaml_template = self._BASE_YAML_TEMPLATE
     yaml_string = self._build_yaml(
