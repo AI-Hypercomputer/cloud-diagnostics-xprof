@@ -184,32 +184,54 @@ kind: Pod
 metadata:
   name: {pod_name}
   namespace: {namespace}
+  annotations:
+    xprofiler-version: {xprofiler_version}
+    tensorboard-plugin-profile: {tensorboard_plugin_profile_version}
+    log-directory: {log_directory}
   labels:
     app: xprofiler
     {xprofiler_version_label_key}: {xprofiler_version}
     tensorboard_plugin_profile: {tensorboard_plugin_profile_version}
+    region: {region}
+    zone: {zone}
 spec:
   hostNetwork: true
   serviceAccountName: {service_account_name}
   initContainers:
   - name: proxy-init
     image: google/cloud-sdk:slim
+    env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
     command:
       - /bin/bash
       - -c
       - |
         set -euo pipefail
-        CONFIG_DIR="/etc/proxy-agent"
-        CONFIG_FILE="${{CONFIG_DIR}}/proxy-agent-config.json"
-        ENV_FILE="${{CONFIG_DIR}}/proxy-{pod_name}.env"
+        PROXY_CONFIG_DIR="/etc/proxy-agent"
+        CONFIG_FILE="${{PROXY_CONFIG_DIR}}/proxy-agent-config.json"
+        ENV_FILE="${{PROXY_CONFIG_DIR}}/proxy-{pod_name}.env"
 
-        echo "INFO: Creating config directory."
-        mkdir -p ${{CONFIG_DIR}}
+        LOG_DIRECTORY="{log_directory}"
+        PORT="{pod_port}"
+        REGION="{region}"
+
+        echo "INFO: Getting kubectl..."
+        apt-get install -y kubectl
+
+        echo "INFO: Creating proxy agent config directory ${{PROXY_CONFIG_DIR}}."
+        mkdir -p ${{PROXY_CONFIG_DIR}}
+
 
         echo "INFO: Copying proxy agent config from GCS..."
         gcloud storage cp gs://dl-platform-public-configs/proxy-agent-config.json ${{CONFIG_FILE}}
 
-        REGION="{region}"
         echo "INFO: Extracting proxy URL for region: ${{REGION}}"
         PROXY_URL=$(python3 -c "import json; print(json.load(open('${{CONFIG_FILE}}'))['agent-docker-containers']['latest']['proxy-urls']['${{REGION}}'][0])")
         if [ -z "${{PROXY_URL}}" ]; then
@@ -230,8 +252,10 @@ spec:
         BACKEND_ID=$(echo "${{RESULT_JSON}}" | python3 -c "import json, sys; print(json.load(sys.stdin)['backendID'])")
         echo "INFO: BACKEND_ID: ${{BACKEND_ID}}"
 
+        # Add https:// to the hostname to create a valid URL.
         HOSTNAME=$(echo "${{RESULT_JSON}}" | python3 -c "import json, sys; print(json.load(sys.stdin)['hostname'])")
-        echo "INFO: HOSTNAME: ${{HOSTNAME}}"
+        EXTERNAL_PROXY_URL="https://${{HOSTNAME}}"
+        echo "INFO: EXTERNAL_PROXY_URL: ${{EXTERNAL_PROXY_URL}}"
 
         echo "INFO: Writing environment file for proxy agent..."
         # This file will be sourced by the proxy-agent sidecar
@@ -240,11 +264,14 @@ spec:
           echo "export PROXY='${{PROXY_URL}}/'"
           echo "export SHIM_WEBSOCKETS='true'"
           echo "export SHIM_PATH='websocket-shim'"
-          echo "export PORT='{pod_port}'" # Port your TensorBoard is running on
+          echo "export PORT='${{PORT}}'"
         }} > ${{ENV_FILE}}
 
+        echo "INFO: Applying annotation 'proxy-url=${{EXTERNAL_PROXY_URL}}'..."
+        kubectl annotate pod "${{POD_NAME}}" --namespace "${{POD_NAMESPACE}}" "proxy-url=${{EXTERNAL_PROXY_URL}}" --overwrite
+
+        echo "Proxy will be available at: ${{EXTERNAL_PROXY_URL}}"
         echo "SUCCESS: Init container finished."
-        echo "Proxy will be available at: https://${{HOSTNAME}}"
 
     volumeMounts:
     - name: {proxy_config_volume}
@@ -760,6 +787,7 @@ spec:
         tensorboard_plugin_profile_version=_TENSORBOARD_PLUGIN_PROFILE_VERSION,
         service_account_name='xprofiler',
         region=region,
+        zone=args.zone,
         log_directory=args.log_directory,
         tensorboard_image='us-central1-docker.pkg.dev/deeplearning-images/reproducibility/xprofiler:temp',
         pod_port='9001',
