@@ -873,6 +873,7 @@ spec:
         ],
         vm_name=None,
         filter=None,
+        gke=False,
         verbose=verbose,
     )
     list_command_output = list_command.run(list_args, verbose=verbose)
