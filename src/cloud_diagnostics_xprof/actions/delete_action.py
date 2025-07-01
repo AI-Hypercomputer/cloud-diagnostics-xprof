@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A delete command implementation for the xprof CLI.
+"""A delete command implementation for the xprofiler CLI.
 
-This command is used as part of the xprof CLI to delete a xprofiler
+This command is used as part of the xprofiler CLI to delete a xprofiler
 instance. The intention is that this can be used after creation of a new
-instance using the `xprof create` command (versus using for general instance
+instance using the `xprofiler create` command (versus using for general instance
 deletion).
 """
 
@@ -79,6 +79,15 @@ class Delete(action.Command):
         help='The GCP zone to delete the instance in.',
     )
     delete_parser.add_argument(
+        '--gke',
+        action='store_true',
+        help=(
+            '[EXPERIMENTAL] Delete Pod(s) on GKE instead of a VM. '
+            'This is an experimental feature and may change in the future'
+            ' or may be removed completely.'
+        ),
+    )
+    delete_parser.add_argument(
         '--quiet',
         '-q',
         action='store_true',
@@ -91,7 +100,7 @@ class Delete(action.Command):
         help='Print the command.',
     )
 
-  def _get_vms_names(
+  def _get_vm_names(
       self,
       log_directories: Sequence[str] | None,
       vm_names: Sequence[str] | None,
@@ -136,40 +145,95 @@ class Delete(action.Command):
 
     return vm_names
 
-  def _display_vm_names(
+  def _get_pod_names(
       self,
-      vm_names: Sequence[str],
-      zone: str,
+      log_directories: Sequence[str] | None,
+      pod_names: Sequence[str] | None,
+      zone: str | None = None,
       verbose: bool = False,
-  ) -> None:
-    """Displays the VM name(s) to the user.
+  ) -> Sequence[str]:
+    """Gets the Pod name(s) from the log directory(s) and/or Pod name(s).
 
     Args:
-      vm_names: The VM name(s) to display.
-      zone: The GCP zone to delete the instance in.
+      log_directories: The log directory(s) associated with the Pod(s).
+      pod_names: The Pod name(s).
+      zone: The GCP zone to check for Pod names. Can be None.
+      verbose: Whether to print verbose output.
+
+    Returns:
+      The Pod name(s) that were actually found.
+    """
+    # Use the list action to get the Pod name(s).
+    list_command = list_action.List()
+    list_args = argparse.Namespace(
+        zones=[zone] if zone else None,
+        log_directory=log_directories,
+        vm_name=pod_names,
+        filter=None,
+        gke=True,
+        verbose=verbose,
+    )
+
+    # Each Pod name is on a separate line after the header.
+    command_output = list_command.run(
+        args=list_args,
+        verbose=verbose,
+    )
+    if verbose:
+      print(command_output)
+
+    # Get VM names from the list output.
+    pod_names = [
+        pod_name
+        for pod in json.loads(command_output)
+        if (pod_name := pod.get('metadata', {}).get('name'))
+    ]
+
+    return pod_names
+
+  def _display_instance_names(
+      self,
+      names: Sequence[str],
+      zone: str,
+      gke: bool = False,
+      *,
+      verbose: bool = False,
+  ) -> None:
+    """Displays the VM or Pod name(s) to the user.
+
+    Args:
+      names: The VM or Pod name(s) to display.
+      zone: The GCP zone the instance can be found in.
+      gke: Whether the instance is a GKE Pod. If False, it is a VM.
       verbose: Whether to print verbose output.
     """
-    if not vm_names:
+    if not names:
       if verbose:
-        print('Empty VM names list so nothing to display.')
+        print('Empty names list so nothing to display.')
       return
 
     if verbose:
-      print(f'Calling list subcommand to get info on VM(s): {vm_names}')
+      print(f'Calling list subcommand to get info on VM(s)/Pod(s): {names}')
 
     list_command = list_action.List()
 
-    # Build filter args to get the VM(s) to display.
-    # True if any exactly matches a VM name (based on gcloud's filter syntax).
-    filter_args = [
-        f'name=({",".join(vm_names)})'
-    ]
+    if gke:
+      filter_args = None
+      names_param = names
+    else:
+      # Build filter args to get the VM(s) to display.
+      # True if any exactly matches a VM name (based on gcloud's filter syntax).
+      # This tends to be faster than using the VM name(s) directly.
+      filter_args = [
+          f'name=({",".join(names)})'
+      ]
+      names_param = None
     list_args = argparse.Namespace(
         log_directory=None,
-        zones=[zone],
-        vm_name=None,
-        filter=filter_args,
-        gke=False,
+        zones=[zone],  # Must be a list, even if only one zone.
+        vm_name=names_param,  # Confusing name but can be the Pod or VM name(s).
+        filter=filter_args,  # Can be None.
+        gke=gke,
         verbose=verbose,
     )
 
@@ -241,37 +305,46 @@ class Delete(action.Command):
           'Either --vm-name or --log-directory must be specified.'
       )
 
-    # List of VM names to (potentially) delete, confirmed by checking project.
-    vm_candidates = self._get_vms_names(
-        log_directories=args.log_directory,
-        vm_names=args.vm_name,
-        zone=args.zone,
-        verbose=verbose,
-    )
+    if args.gke:
+      candidates = self._get_pod_names(
+          log_directories=args.log_directory,
+          pod_names=args.vm_name,
+          zone=args.zone,
+          verbose=verbose,
+      )
+    else:
+      # List of VM names to (potentially) delete, confirmed by checking project.
+      candidates = self._get_vm_names(
+          log_directories=args.log_directory,
+          vm_names=args.vm_name,
+          zone=args.zone,
+          verbose=verbose,
+      )
 
     if verbose:
-      print(f'Confirmed VM candidates to delete: {vm_candidates}')
+      print(f'Confirmed VM/Pod candidates to delete: {candidates}')
 
-    if not vm_candidates:
-      raise ValueError('No VM(s) to delete.')
+    if not candidates:
+      raise ValueError('No VM(s)/Pod(s) to delete.')
 
     # Skip confirmation if user specified --quiet.
     # Only need to display VM(s) if the user is confiming deletion or verbose.
     if verbose or not args.quiet:
-      print(f'Found {len(vm_candidates)} VM(s) to delete.\n')
-      self._display_vm_names(
-          vm_names=vm_candidates,
+      print(f'Found {len(candidates)} VM(s)/Pod(s) to delete.\n')
+      self._display_instance_names(
+          names=candidates,
           zone=args.zone,
+          gke=args.gke,
           verbose=verbose,
       )
 
     # Skip confirmation if user specified --quiet.
     if args.quiet:
-      vm_names = vm_candidates
+      vm_names = candidates
       if verbose:
-        print(f'Skipping confirmation for VM(s): {vm_names}')
+        print(f'Skipping confirmation for VM(s)/Pod(s): {vm_names}')
     else:
-      vm_names = self._confirm_vm_deletions(vm_candidates)
+      vm_names = self._confirm_vm_deletions(candidates)
 
     if not vm_names:
       raise ValueError('No VM(s) to delete.')
@@ -279,28 +352,36 @@ class Delete(action.Command):
     if verbose:
       print(f'Will delete VM(s) w/ name: {vm_names}')
 
-    delete_vm_command = [
-        self.GCLOUD_COMMAND,
-        'compute',
-        'instances',
-        'delete',
-        '--quiet',  # Don't ask for confirmation or give extra details.
-        f'--zone={args.zone}',
-    ]
+    if args.gke:
+      delete_command = [
+          'kubectl',
+          'delete',
+          f'--namespace={self.DEFAULT_NAMESPACE}',
+          'pods',
+      ]
+    else:
+      delete_command = [
+          self.GCLOUD_COMMAND,
+          'compute',
+          'instances',
+          'delete',
+          '--quiet',  # Don't ask for confirmation or give extra details.
+          f'--zone={args.zone}',
+      ]
 
     # Extensions of any other arguments to the main command.
     if extra_args:
-      delete_vm_command.extend([
+      delete_command.extend([
           f'{arg}={value}' if value else f'{arg}'
           for arg, value in extra_args.items()
       ])
 
-    delete_vm_command.extend(vm_names)
+    delete_command.extend(vm_names)
 
     if verbose:
-      print(delete_vm_command)
+      print(delete_command)
 
-    return delete_vm_command
+    return delete_command
 
   def display(
       self,

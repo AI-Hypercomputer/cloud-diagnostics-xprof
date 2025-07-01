@@ -558,6 +558,7 @@ spec:
         vm_name=[vm_name],
         log_directory=None,
         zone=zone,
+        gke=False,
         quiet=True,
     )
     delete_command_output = delete_command.run(delete_args, verbose=verbose)
