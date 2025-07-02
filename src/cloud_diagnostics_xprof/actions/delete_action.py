@@ -249,36 +249,38 @@ class Delete(action.Command):
         verbose=verbose,
     )
 
-  def _confirm_vm_deletions(
+  def _confirm_instance_deletions(
       self,
-      vm_candidates: Sequence[str],
+      candidates: Sequence[str],
   ) -> Sequence[str]:
-    """Confirms with user that they want to delete the VM(s).
+    """Confirms with user that they want to delete the VM(s)/Pod(s).
 
     Args:
-      vm_candidates: The VM name(s) to delete.
+      candidates: The VM or Pod name(s) to delete.
 
     Returns:
-      The VM name(s) to delete.
+      The VM or Pod name(s) to delete.
     """
     # Confirm with user that they want to delete each VM(s).
     message_to_user = (
-        '\nDo you want to continue to delete the VM `{VM_NAME}`?\n'
+        '\nDo you want to continue to delete the VM `{INSTANCE_NAME}`?\n'
         'Enter y/n: '
     )
 
     # Don't proceed if user does not say 'Y'/'y'.
-    vm_names: list[str] = []
-    for vm_name in vm_candidates:
-      user_input = input(message_to_user.format(VM_NAME=vm_name)).lower()
+    instance_names: list[str] = []
+    for instance_name in candidates:
+      user_input = input(
+          message_to_user.format(INSTANCE_NAME=instance_name)
+      ).lower()
       if user_input != 'y':
-        print(f'Will NOT delete VM `{vm_name}`')
+        print(f'Will NOT delete VM `{instance_name}`')
       else:
-        print(f'Will delete VM `{vm_name}`')
-        vm_names.append(vm_name)
+        print(f'Will delete VM `{instance_name}`')
+        instance_names.append(instance_name)
     print()  # Add a new line for clarity.
 
-    return vm_names
+    return instance_names
 
   def _build_command(
       self,
@@ -344,7 +346,7 @@ class Delete(action.Command):
       if verbose:
         print(f'Skipping confirmation for VM(s)/Pod(s): {vm_names}')
     else:
-      vm_names = self._confirm_vm_deletions(candidates)
+      vm_names = self._confirm_instance_deletions(candidates)
 
     if not vm_names:
       raise ValueError('No VM(s) to delete.')
