@@ -440,6 +440,8 @@ class List(action.Command):
     filtered_pods = []
 
     for pod in pods:
+      if verbose:
+        print(f'Checking for {log_directories=}')
       log_directory = (
           pod
           .get('metadata', {})
@@ -451,7 +453,7 @@ class List(action.Command):
           print(f'Found Pod match via log directory: {log_directory}')
         filtered_pods.append(pod)
 
-    return json.dumps(filtered_pods)
+    return json.dumps(dict(items=filtered_pods))
 
   def _build_command(
       self,
@@ -609,6 +611,8 @@ class List(action.Command):
       print(f'Number of outputs: {len(outputs)}')
     for output in outputs:
       output_as_json = json.loads(output)
+      if not output_as_json:  # Empty output.
+        continue
       pod_items = output_as_json.get('items', [output_as_json])
       if verbose:
         print(f'Number of Pod items for filter: {len(pod_items)}')
@@ -645,6 +649,8 @@ class List(action.Command):
     """
     # Need to run multiple commands to get the Pod(s) based on user feedback.
     all_commands: list[Sequence[str]] = []
+    # Keep track of the Pod outputs to combine them later.
+    all_outputs: list[str] = []
     # Collect labels if given in args or extra_args.
     # Use the args to create the labels if given.
     pod_labels: list[str] = []
@@ -685,8 +691,29 @@ class List(action.Command):
       )
       all_commands.append(command_pod_by_names)
 
-    # Use a generic command if no criteria is given (all_commands is empty).
-    if not all_commands:
+    # Need all Pods to filter by log directory (regardless of other criteria).
+    if args.log_directory:
+      command_all_pods = self._command_gke_all(
+          verbose=verbose,
+      )
+      command_all_pods_output = self._run_command(
+          command_all_pods,
+          verbose=verbose,
+      )
+      # Makes sure to get just the Pod items.
+      all_pods_mapping = json.loads(command_all_pods_output).get('items', [])
+
+      pods_filtered_by_log_directory = self._filter_pods_by_log_directory(
+          pods=all_pods_mapping,
+          log_directories=args.log_directory,
+          verbose=verbose,
+      )
+      # Add each Pod to the list of outputs.
+      for pod in json.loads(pods_filtered_by_log_directory).get('items', []):
+        all_outputs.append(json.dumps(pod))
+
+    # Use a generic command if no criteria is given.
+    if (not all_commands) and (not all_outputs):
       if verbose:
         print('No criteria given, so using generic command to list all Pods.')
       command_generic = self._command_gke_all(
@@ -697,22 +724,18 @@ class List(action.Command):
     # Read the stdout and parse it into a list of Pod(s).
     if verbose:
       print(f'All commands: {all_commands}')
-    all_outputs: list[str] = [
-        self._run_command(command, verbose=False)
+    # Make sure we include the log directory filtering output if already done.
+    all_outputs.extend(
+        self._run_command(command, verbose=verbose)
         for command in all_commands
-    ]
+    )
     # Assuming all outputs are JSON, to be processed as a single valid JSON.
     combined_pod_outputs = self._combine_pod_outputs(
         outputs=all_outputs,
         verbose=verbose,
     )
 
-    # Filter Pods based on log directory (if given)
-    stdout = self._filter_pods_by_log_directory(
-        pods=combined_pod_outputs,
-        log_directories=args.log_directory,
-        verbose=verbose,
-    )
+    stdout = json.dumps(combined_pod_outputs)
 
     return stdout
 
