@@ -17,9 +17,9 @@
 
 This repository contains 2 tools:
 
-1. [mltrace](mltrace)
+1. [mltrace](#mltrace)
 
-1. [xprofiler](xprofiler)
+1. [xprofiler](#xprofiler)
 
 # mltrace
 
@@ -70,7 +70,7 @@ Clone cloud-diagnostics-xprof and Perfetto.
 
 ```
 git clone https://github.com/AI-Hypercomputer/cloud-diagnostics-xprof.git
-cd src
+cd cloud-diagnostics-xprof/src
 git clone https://github.com/google/perfetto.git
 protoc --proto_path=perfetto/protos/perfetto/trace/ --python_out=perfetto/protos/perfetto/trace/ perfetto/protos/perfetto/trace/perfetto_trace.proto
 ```
