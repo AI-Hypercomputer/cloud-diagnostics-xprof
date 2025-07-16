@@ -790,7 +790,10 @@ spec:
         region=region,
         zone=args.zone,
         log_directory=args.log_directory,
-        tensorboard_image='us-central1-docker.pkg.dev/deeplearning-images/reproducibility/xprofiler:temp',
+        tensorboard_image=(
+            'us-central1-docker.pkg.dev/deeplearning-images/reproducibility/'
+            f'xprofiler:tb-plugin-{_TENSORBOARD_PLUGIN_PROFILE_VERSION}'
+        ),
         pod_port='9001',
         tensorboard_logs_volume='xprofiler-tensorboard-logs',
         proxy_config_volume='xprofiler-proxy-config',
