@@ -36,7 +36,7 @@ from cloud_diagnostics_xprof.actions import list_action
 
 # Frozen to specific version of tensorboard-plugin-profile; updated periodically
 # Note used for install and adding to metadata + label.
-_TENSORBOARD_PLUGIN_PROFILE_VERSION = '2.19.9'
+_TENSORBOARD_PLUGIN_PROFILE_VERSION = '2.20.2'
 
 _DEP_INSTALL_URL = 'https://github.com/AI-Hypercomputer/cloud-diagnostics-xprof/blob/main/README.md#install-dependencies'
 _WAIT_TIME_IN_SECONDS = 20
