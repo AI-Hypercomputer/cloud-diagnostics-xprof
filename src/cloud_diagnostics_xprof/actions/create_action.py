@@ -179,10 +179,10 @@ class Create(action.Command):
   _YAML_TEMPLATE_REPLACEMENT_FORMAT = {
       '-': '_',
   }
-  _BASE_YAML_TEMPLATE = """apiVersion: apps/v1
-kind: Deployment
+  _BASE_YAML_TEMPLATE = """apiVersion: v1
+kind: Pod
 metadata:
-  name: {pod_name}-tensorboard
+  name: {pod_name}
   namespace: {namespace}
   annotations:
     xprofiler-version: {xprofiler_version}
@@ -193,181 +193,145 @@ metadata:
     {xprofiler_version_label_key}: {xprofiler_version}
     tensorboard_plugin_profile: {tensorboard_plugin_profile_version}
     region: {region}
-    zone: {zone}cs
+    zone: {zone}
 spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: xprofiler
-  template:
-    metadata:
-      annotations:
-        xprofiler-version: {xprofiler_version}
-        tensorboard-plugin-profile: {tensorboard_plugin_profile_version}
-        log-directory: {log_directory}
-      labels:
-        app: xprofiler
-        {xprofiler_version_label_key}: {xprofiler_version}
-        tensorboard_plugin_profile: {tensorboard_plugin_profile_version}
-        region: {region}
-        zone: {zone}
-    spec:
-      containers:
-        - name: tensorboard
-          image: {tensorboard_image}
-          args: [
-            "tensorboard",
-            "--logdir={log_directory}",
-            "--bind_all",
-            "--port={pod_port}",
-          ]
-          ports:
-          - containerPort: {pod_port}
-          volumeMounts:
-          - name: {tensorboard_logs_volume}
-            mountPath: /tmp
+  hostNetwork: true
+  serviceAccountName: {service_account_name}
+  initContainers:
+  - name: proxy-init
+    image: google/cloud-sdk:slim
+    env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+    command:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        PROXY_CONFIG_DIR="/etc/proxy-agent"
+        CONFIG_FILE="${{PROXY_CONFIG_DIR}}/proxy-agent-config.json"
+        ENV_FILE="${{PROXY_CONFIG_DIR}}/proxy-{pod_name}.env"
 
-      volumes:
-      # Contains TensorBoard logs.
-      - name: {tensorboard_logs_volume}
-        persistentVolumeClaim:
-          claimName: {tensorboard_logs_volume}-pvc
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: {pod_name}-proxy
-  namespace: {namespace}
-  labels:
-    app: proxy-agent
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: xprofiler-agent
-  template:
-    metadata:
-      labels:
-        app: xprofiler-agent
-    spec:
-      serviceAccountName: {service_account_name}
-      initContainers:
-        - name: proxy-init
-          image: google/cloud-sdk:slim
-          env:
-              - name: POD_NAME
-                valueFrom:
-                  fieldRef:
-                    fieldPath: metadata.name
-              - name: POD_NAMESPACE
-                valueFrom:
-                  fieldRef:
-                    fieldPath: metadata.namespace
-          command:
-            - /bin/bash
-            - -c
-            - |
-              set -euo pipefail
-              PROXY_CONFIG_DIR="/etc/proxy-agent"
-              CONFIG_FILE="${{PROXY_CONFIG_DIR}}/proxy-agent-config.json"
-              ENV_FILE="${{PROXY_CONFIG_DIR}}/proxy-{pod_name}.env"
+        LOG_DIRECTORY="{log_directory}"
+        PORT="{pod_port}"
+        REGION="{region}"
 
-              LOG_DIRECTORY="{log_directory}"
-              PORT="{pod_port}"
-              REGION="{region}"
+        echo "INFO: Getting kubectl..."
+        apt-get install -y kubectl
 
-              echo "INFO: Getting kubectl..."
-              apt-get install -y kubectl
-
-              echo "INFO: Creating proxy agent config directory ${{PROXY_CONFIG_DIR}}."
-              mkdir -p ${{PROXY_CONFIG_DIR}}
+        echo "INFO: Creating proxy agent config directory ${{PROXY_CONFIG_DIR}}."
+        mkdir -p ${{PROXY_CONFIG_DIR}}
 
 
-              echo "INFO: Copying proxy agent config from GCS..."
-              gcloud storage cp gs://dl-platform-public-configs/proxy-agent-config.json ${{CONFIG_FILE}}
+        echo "INFO: Copying proxy agent config from GCS..."
+        gcloud storage cp gs://dl-platform-public-configs/proxy-agent-config.json ${{CONFIG_FILE}}
 
-              echo "INFO: Extracting proxy URL for region: ${{REGION}}"
-              PROXY_URL=$(python3 -c "import json; print(json.load(open('${{CONFIG_FILE}}'))['agent-docker-containers']['latest']['proxy-urls']['${{REGION}}'][0])")
-              if [ -z "${{PROXY_URL}}" ]; then
-                echo "ERROR: Could not find proxy URL for region ${{REGION}}." >&2
-                exit 1
-              fi
-              echo "INFO: Proxy URL: ${{PROXY_URL}}"
+        echo "INFO: Extracting proxy URL for region: ${{REGION}}"
+        PROXY_URL=$(python3 -c "import json; print(json.load(open('${{CONFIG_FILE}}'))['agent-docker-containers']['latest']['proxy-urls']['${{REGION}}'][0])")
+        if [ -z "${{PROXY_URL}}" ]; then
+          echo "ERROR: Could not find proxy URL for region ${{REGION}}." >&2
+          exit 1
+        fi
+        echo "INFO: Proxy URL: ${{PROXY_URL}}"
 
-              echo "INFO: Fetching instance identity token from metadata server..."
-              VM_ID=$(curl --fail -s -H 'Metadata-Flavor: Google' "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?format=full&audience=${{PROXY_URL}}/request-endpoint")
-              echo "INFO: VM_ID: ${{VM_ID}}"
+        echo "INFO: Fetching instance identity token from metadata server..."
+        VM_ID=$(curl --fail -s -H 'Metadata-Flavor: Google' "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?format=full&audience=${{PROXY_URL}}/request-endpoint")
+        echo "INFO: VM_ID: ${{VM_ID}}"
 
-              echo "INFO: Requesting backend endpoint from proxy service..."
-              ACCESS_TOKEN=$(gcloud auth print-access-token)
-              RESULT_JSON=$(curl --fail -s -H "Authorization: Bearer ${{ACCESS_TOKEN}}" -H "X-Inverting-Proxy-VM-ID: ${{VM_ID}}" -d "" "${{PROXY_URL}}/request-endpoint")
-              echo "INFO: RESULT_JSON: ${{RESULT_JSON}}"
+        echo "INFO: Requesting backend endpoint from proxy service..."
+        ACCESS_TOKEN=$(gcloud auth print-access-token)
+        RESULT_JSON=$(curl --fail -s -H "Authorization: Bearer ${{ACCESS_TOKEN}}" -H "X-Inverting-Proxy-VM-ID: ${{VM_ID}}" -d "" "${{PROXY_URL}}/request-endpoint")
+        echo "INFO: RESULT_JSON: ${{RESULT_JSON}}"
 
-              BACKEND_ID=$(echo "${{RESULT_JSON}}" | python3 -c "import json, sys; print(json.load(sys.stdin)['backendID'])")
-              echo "INFO: BACKEND_ID: ${{BACKEND_ID}}"
+        BACKEND_ID=$(echo "${{RESULT_JSON}}" | python3 -c "import json, sys; print(json.load(sys.stdin)['backendID'])")
+        echo "INFO: BACKEND_ID: ${{BACKEND_ID}}"
 
-              # Add https:// to the hostname to create a valid URL.
-              HOSTNAME=$(echo "${{RESULT_JSON}}" | python3 -c "import json, sys; print(json.load(sys.stdin)['hostname'])")
-              EXTERNAL_PROXY_URL="https://${{HOSTNAME}}"
-              echo "INFO: EXTERNAL_PROXY_URL: ${{EXTERNAL_PROXY_URL}}"
+        # Add https:// to the hostname to create a valid URL.
+        HOSTNAME=$(echo "${{RESULT_JSON}}" | python3 -c "import json, sys; print(json.load(sys.stdin)['hostname'])")
+        EXTERNAL_PROXY_URL="https://${{HOSTNAME}}"
+        echo "INFO: EXTERNAL_PROXY_URL: ${{EXTERNAL_PROXY_URL}}"
 
-              echo "INFO: Writing environment file for proxy agent..."
-              # This file will be sourced by the proxy-agent sidecar
-              {{
-                echo "export BACKEND_ID='${{BACKEND_ID}}'"
-                echo "export PROXY='${{PROXY_URL}}/'"
-                echo "export SHIM_WEBSOCKETS='true'"
-                echo "export SHIM_PATH='websocket-shim'"
-                echo "export HOSTNAME='xprofiler-service.{namespace}.svc.cluster.local:{pod_port}'"
-              }} > ${{ENV_FILE}}
+        echo "INFO: Writing environment file for proxy agent..."
+        # This file will be sourced by the proxy-agent sidecar
+        {{
+          echo "export BACKEND_ID='${{BACKEND_ID}}'"
+          echo "export PROXY='${{PROXY_URL}}/'"
+          echo "export SHIM_WEBSOCKETS='true'"
+          echo "export SHIM_PATH='websocket-shim'"
+          echo "export PORT='${{PORT}}'"
+        }} > ${{ENV_FILE}}
 
-              echo "INFO: Applying annotation 'proxy-url=${{EXTERNAL_PROXY_URL}}'..."
-              kubectl annotate pod "${{POD_NAME}}" --namespace "${{POD_NAMESPACE}}" "proxy-url=${{EXTERNAL_PROXY_URL}}" --overwrite
+        echo "INFO: Applying annotation 'proxy-url=${{EXTERNAL_PROXY_URL}}'..."
+        kubectl annotate pod "${{POD_NAME}}" --namespace "${{POD_NAMESPACE}}" "proxy-url=${{EXTERNAL_PROXY_URL}}" --overwrite
 
-              echo "Proxy will be available at: ${{EXTERNAL_PROXY_URL}}"
-              echo "SUCCESS: Init container finished."
+        echo "Proxy will be available at: ${{EXTERNAL_PROXY_URL}}"
+        echo "SUCCESS: Init container finished."
 
-          volumeMounts:
-          - name: {proxy_config_volume}
-            mountPath: /etc/proxy-agent
+    volumeMounts:
+    - name: {proxy_config_volume}
+      mountPath: /etc/proxy-agent
 
-      containers:
-        # Sources environment file created by init container & then starts the agent.
-        # See https://github.com/google/inverting-proxy/blob/master/agent/Dockerfile
-        - name: proxy-agent
-          image: gcr.io/inverting-proxy/agent:latest
-          # It sources the environment variables and then executes the agent
-          # binary with the required command-line flags.
-          command:
-            - /bin/bash
-            - -c
-            - |
-              # Use shell safety features
-              set -euo pipefail
+  containers:
+  - name: tensorboard
+    image: {tensorboard_image}
+    args: [
+      "tensorboard",
+      "--logdir={log_directory}",
+      "--bind_all",
+      "--port={pod_port}",
+    ]
+    ports:
+    - containerPort: {pod_port}
+    volumeMounts:
+    - name: {tensorboard_logs_volume}
+      mountPath: /tmp
 
-              # Load the dynamic variables from the file created by the init container
-              echo "INFO: Sourcing environment from /etc/proxy-agent/proxy-{pod_name}.env"
-              source /etc/proxy-agent/proxy-{pod_name}.env
+  # Sources environment file created by init container & then starts the agent.
+  # See https://github.com/google/inverting-proxy/blob/master/agent/Dockerfile
+  - name: proxy-agent
+    image: gcr.io/inverting-proxy/agent:latest
+    # It sources the environment variables and then executes the agent
+    # binary with the required command-line flags.
+    command:
+      - /bin/bash
+      - -c
+      - |
+        # Use shell safety features
+        set -euo pipefail
 
-              # The 'exec' command replaces the shell process with the agent process,
-              # which is a best practice for running applications in containers.
-              echo "INFO: Starting proxy-forwarding-agent with configured flags..."
-              # Omitting other flags to use their default values from the Dockerfile
-              exec /opt/bin/proxy-forwarding-agent \
-                "--proxy=${{PROXY}}" \
-                "--backend=${{BACKEND_ID}}" \
-                "--host=${{HOSTNAME}}" \
-                "--shim-websockets=${{SHIM_WEBSOCKETS}}" \
-                "--shim-path=${{SHIM_PATH}}"
-          volumeMounts:
-          - name: {proxy_config_volume}
-            mountPath: /etc/proxy-agent
-            readOnly: true
+        # Load the dynamic variables from the file created by the init container
+        echo "INFO: Sourcing environment from /etc/proxy-agent/proxy-{pod_name}.env"
+        source /etc/proxy-agent/proxy-{pod_name}.env
 
-      volumes:
-      # Shared between the init and proxy-agent containers; passes dynamic config.
-      - name: {proxy_config_volume}
-        emptyDir: {{}}
+        # The 'exec' command replaces the shell process with the agent process,
+        # which is a best practice for running applications in containers.
+        echo "INFO: Starting proxy-forwarding-agent with configured flags..."
+        # Omitting other flags to use their default values from the Dockerfile
+        exec /opt/bin/proxy-forwarding-agent \
+          "--proxy=${{PROXY}}" \
+          "--backend=${{BACKEND_ID}}" \
+          "--host=localhost:${{PORT}}" \
+          "--shim-websockets=${{SHIM_WEBSOCKETS}}" \
+          "--shim-path=${{SHIM_PATH}}"
+    volumeMounts:
+    - name: {proxy_config_volume}
+      mountPath: /etc/proxy-agent
+      readOnly: true
+
+  volumes:
+  # Shared between the init and proxy-agent containers; passes dynamic config.
+  - name: {proxy_config_volume}
+    emptyDir: {{}}
+  # Contains TensorBoard logs.
+  - name: {tensorboard_logs_volume}
+    persistentVolumeClaim:
+      claimName: {tensorboard_logs_volume}-pvc
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -375,26 +339,11 @@ metadata:
   name: {tensorboard_logs_volume}-pvc
   namespace: {namespace}
 spec:
-  resources12:
+  accessModes:
+    - ReadWriteOnce
+  resources:
     requests:
       storage: {tensorboard_logs_volume_size}
----
-apiVersion: v1
-kind: Service
-metadata:
- name: xprofiler-service
- namespace: {namespace}
- labels:
-   app: xprofiler
-spec:
- selector:
-   app: xprofiler
- clusterIP: None  # This makes it a headless service
- ports:
- - protocol: TCP
-   port: 80  # Replace with desired Service port as necessary
-   targetPort: {pod_port}
----
   """
 
   def __init__(self):
@@ -825,7 +774,7 @@ spec:
     ### STEPS ###
     # Build the YAML file from args inputed.
     unique_pod_name = (
-        'xprofiler'
+        'xprofiler-pod'
         f'-{date.today().strftime("%Y%m%d%H%M%S")}'
         f'-{uuid.uuid4()}'
     )
