@@ -309,8 +309,7 @@ class Command(abc.ABC):
     columns_index: dict[int, str] = dict(enumerate(columns))
 
     data_table: dict[str, list[str]] = {
-        col: []
-        for col in columns_index.values()
+        col: [] for col in columns_index.values()
     }
 
     if verbose:
@@ -562,4 +561,3 @@ def flag_with_value_from_key_value(
   # If the value is an empty string or None, then we want it to be None
   flag_value = value if value else None
   return (flag_name, flag_value)
-

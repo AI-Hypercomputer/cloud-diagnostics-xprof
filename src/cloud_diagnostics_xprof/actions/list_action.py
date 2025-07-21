@@ -36,9 +36,7 @@ class List(action.Command):
 
   # Specific output for Pod(s) returned by `kubectl get pods`.
   _POD_OUTPUT_FORMAT = (
-      'NAME:.metadata.name'
-      ',NAMESPACE:.metadata.namespace'
-      ',STATUS:.status.phase'
+      'NAME:.metadata.name,NAMESPACE:.metadata.namespace,STATUS:.status.phase'
   )
 
   # This is assumed to be correct after creation has been made.
@@ -178,19 +176,13 @@ class List(action.Command):
     # Since can have multiple values for each key, we need to OR–join them.
     negation_str = '-' if is_negation else ''
     all_filter_strings = [
-        (
-            f'{negation_str}{key}{key_joiner_str}({",".join(list_of_values)})'
-        )
+        f'{negation_str}{key}{key_joiner_str}({",".join(list_of_values)})'
         for key, list_of_values in filter_values.items()
     ]
     if verbose:
       print(f'All filter strings: {all_filter_strings}')
     # Must contain these properties across all key values
-    filter_string = (
-        '(' +
-        f') {join_operator} ('.join(all_filter_strings) +
-        ')'
-    )
+    filter_string = '(' + f') {join_operator} ('.join(all_filter_strings) + ')'
     if verbose:
       print(f'Final filter string: {filter_string}')
     return filter_string
@@ -209,11 +201,7 @@ class List(action.Command):
     Returns:
       The log directory from the VM formatted as URL.
     """
-    log_directory_from_metadata = (
-        vm
-        .get('metadata', {})
-        .get('items', [])
-    )
+    log_directory_from_metadata = vm.get('metadata', {}).get('items', [])
     # Assume the items is a list and the first item is the log directory.
     # This if given by the gcloud's `--format` flag; specifically from
     # `metadata.items.extract({self.LOG_DIRECTORY_LABEL_KEY})`
@@ -302,10 +290,7 @@ class List(action.Command):
 
       # AND the main filter string with the filter string.
       # Paranetheses are needed if the filter string from user uses OR.
-      full_filter_string = (
-          f'({full_filter_string})'
-          f' AND ({filter_string})'
-      )
+      full_filter_string = f'({full_filter_string}) AND ({filter_string})'
 
     if verbose:
       print(f'Full filter string: {full_filter_string}')
@@ -340,7 +325,9 @@ class List(action.Command):
         'kubectl',
         f'--namespace={self.DEFAULT_NAMESPACE}',
         'get',
-        'pods',
+        'services',
+        '-l',
+        'role=xprofiler-proxy-service',
         '-o',
         'json',
     ]
@@ -364,15 +351,25 @@ class List(action.Command):
     Returns:
       The command to list the Pod(s).
     """
+
+    # TODO: b/433268299 -- add support of multi pod names
     kubectl_command = [
         'kubectl',
         f'--namespace={self.DEFAULT_NAMESPACE}',
         'get',
-        'pods',
-        '-o',
-        'json',
+        'services',
     ]
-    kubectl_command.extend(pod_names)
+    if pod_names:
+      kubectl_command.append('-l')
+      kubectl_command.append(
+          f"role=xprofiler-proxy-service,instance in ({','.join(pod_names)})"
+      )
+    else:
+      kubectl_command.append('-l')
+      kubectl_command.append('role=xprofiler-proxy-service')
+
+    kubectl_command.append('-o')
+    kubectl_command.append('json')
     if verbose:
       print(f'Command to list GKE Pods using pod names: {kubectl_command}')
 
@@ -398,7 +395,9 @@ class List(action.Command):
         'kubectl',
         f'--namespace={self.DEFAULT_NAMESPACE}',
         'get',
-        'pods',
+        'services',
+        '-l',
+        'role=xprofiler-proxy-service',
         '-o',
         'json',
     ]
@@ -416,7 +415,7 @@ class List(action.Command):
 
     return kubectl_command
 
-  def _filter_pods_by_log_directory(
+  def filter_pods_by_log_directory(
       self,
       pods: Sequence[Mapping[str, Any]],
       log_directories: list[str] | None,
@@ -443,8 +442,7 @@ class List(action.Command):
       if verbose:
         print(f'Checking for {log_directories=}')
       log_directory = (
-          pod
-          .get('metadata', {})
+          pod.get('metadata', {})
           .get('annotations', {})
           .get('log-directory', '')
       )
@@ -524,31 +522,22 @@ class List(action.Command):
       # Check each VM against the user provided criteria.
       for vm in vm_candidates:
         # New method: log directory found in metadata.
-        vm_log_dir_metadata = (
-            vm
-            .get('metadata', {})
-            .get('items', [])
-        )
+        vm_log_dir_metadata = vm.get('metadata', {}).get('items', [])
         # Old method: log directory formatted string matches label.
-        vm_log_dir_label = (
-            vm
-            .get('labels', {})
-            .get(self.LOG_DIRECTORY_LABEL_KEY)
+        vm_log_dir_label = vm.get('labels', {}).get(
+            self.LOG_DIRECTORY_LABEL_KEY
         )
 
         # Check if VM matches any name given.
         if args.vm_name and (vm.get('name') in args.vm_name):
           vm_matches.append(vm)
           if verbose:
-            print(
-                f'Found VM match via name'
-                f': {vm.get("name")}'
-            )
+            print(f'Found VM match via name: {vm.get("name")}')
           # Stop checking criteria since VM should be included.
           continue
 
         # Check if VM matches any log directory given.
-        for log_directory in (args.log_directory if args.log_directory else []):
+        for log_directory in args.log_directory if args.log_directory else []:
           if verbose:
             print(f'Checking for {log_directory=}')
           # Format the log directory string for the old version labeling.
@@ -601,8 +590,7 @@ class List(action.Command):
       *,
       verbose: bool = False,
   ) -> list[dict[str, Any]]:
-    """Combine the output of the different commands into a single JSON object.
-    """
+    """Combine the output of the different commands into a single JSON object."""
     pods: list[dict[str, Any]] = []
     # Keep track of the Pod names to avoid duplicates.
     pod_names: set[str] = set()
@@ -703,7 +691,7 @@ class List(action.Command):
       # Makes sure to get just the Pod items.
       all_pods_mapping = json.loads(command_all_pods_output).get('items', [])
 
-      pods_filtered_by_log_directory = self._filter_pods_by_log_directory(
+      pods_filtered_by_log_directory = self.filter_pods_by_log_directory(
           pods=all_pods_mapping,
           log_directories=args.log_directory,
           verbose=verbose,
@@ -726,8 +714,7 @@ class List(action.Command):
       print(f'All commands: {all_commands}')
     # Make sure we include the log directory filtering output if already done.
     all_outputs.extend(
-        self._run_command(command, verbose=verbose)
-        for command in all_commands
+        self._run_command(command, verbose=verbose) for command in all_commands
     )
     # Assuming all outputs are JSON, to be processed as a single valid JSON.
     combined_pod_outputs = self._combine_pod_outputs(
@@ -793,25 +780,18 @@ class List(action.Command):
         data = json.loads(display_str)
         lines = []
         for pod in data:
-          name = pod.get('metadata', {}).get('name', '')
+          name = pod.get('metadata', {}).get('labels', {}).get('instance', '')
           log_directory = (
-              pod
-              .get('metadata', {})
+              pod.get('metadata', {})
               .get('annotations', {})
               .get('log-directory', '')
           )
           proxy_url = (
-              pod
-              .get('metadata', {})
+              pod.get('metadata', {})
               .get('annotations', {})
               .get('proxy-url', '')
           )
-          zone = (
-              pod
-              .get('metadata', {})
-              .get('labels', {})
-              .get('zone', '')
-          )
+          zone = pod.get('metadata', {}).get('labels', {}).get('zone', '')
 
           lines.append([
               log_directory,
@@ -857,22 +837,11 @@ class List(action.Command):
               )
             continue
           # Usually apears in URL format: https://.../zones/us-central1-a
-          zone = (
-              vm
-              .get('zone', '')
-              .split('/')[-1]
-          )
+          zone = vm.get('zone', '').split('/')[-1]
           # Just the region from the zone. (e.g. us-central1-a -> us-central1)
-          region = '-'.join(
-              zone
-              .split('-')[:-1]
-          )
+          region = '-'.join(zone.split('-')[:-1])
           backend_id_formatted = self._PROXY_URL.format(
-              backend_id=(
-                  vm
-                  .get('labels', {})
-                  .get('tb_backend_id')
-              ),
+              backend_id=(vm.get('labels', {}).get('tb_backend_id')),
               region=region,
           )
 

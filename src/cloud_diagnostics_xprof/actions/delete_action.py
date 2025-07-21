@@ -138,10 +138,7 @@ class Delete(action.Command):
       print(command_output)
 
     # Get VM names from the list output.
-    vm_names = [
-        vm['name']
-        for vm in json.loads(command_output)
-    ]
+    vm_names = [vm['name'] for vm in json.loads(command_output)]
 
     return vm_names
 
@@ -186,7 +183,12 @@ class Delete(action.Command):
     pod_names = [
         pod_name
         for pod in json.loads(command_output)
-        if (pod_name := pod.get('metadata', {}).get('name'))
+        if (
+            # TODO: b/? -- hide parsing metadata for vm/gke behind api to reuse logic
+            pod_name := pod.get('metadata', {})
+            .get('labels', {})
+            .get('instance', '')
+        )
     ]
 
     return pod_names
@@ -224,9 +226,7 @@ class Delete(action.Command):
       # Build filter args to get the VM(s) to display.
       # True if any exactly matches a VM name (based on gcloud's filter syntax).
       # This tends to be faster than using the VM name(s) directly.
-      filter_args = [
-          f'name=({",".join(names)})'
-      ]
+      filter_args = [f'name=({",".join(names)})']
       names_param = None
     list_args = argparse.Namespace(
         log_directory=None,
@@ -274,9 +274,9 @@ class Delete(action.Command):
           message_to_user.format(INSTANCE_NAME=instance_name)
       ).lower()
       if user_input != 'y':
-        print(f'Will NOT delete VM `{instance_name}`')
+        print(f'Keep VM `{instance_name}`')
       else:
-        print(f'Will delete VM `{instance_name}`')
+        print(f'Deleting VM `{instance_name}`')
         instance_names.append(instance_name)
     print()  # Add a new line for clarity.
 
@@ -303,9 +303,7 @@ class Delete(action.Command):
     """
     # Check that either VM name or log directory is specified.
     if not args.vm_name and not args.log_directory:
-      raise ValueError(
-          'Either --vm-name or --log-directory must be specified.'
-      )
+      raise ValueError('Either --vm-name or --log-directory must be specified.')
 
     if args.gke:
       candidates = self._get_pod_names(
@@ -352,14 +350,19 @@ class Delete(action.Command):
       raise ValueError('No VM(s) to delete.')
 
     if verbose:
-      print(f'Will delete VM(s) w/ name: {vm_names}')
+      print(f'Will delete VM(s)/Pod(s) w/ name: {vm_names}')
 
     if args.gke:
+      if len(args.vm_name) != 1:
+        raise ValueError('Please specify only one vm name!')
+
       delete_command = [
           'kubectl',
           'delete',
+          'all',
           f'--namespace={self.DEFAULT_NAMESPACE}',
-          'pods',
+          '-l',
+          f'instance={args.vm_name[0]}',
       ]
     else:
       delete_command = [
@@ -371,14 +374,14 @@ class Delete(action.Command):
           f'--zone={args.zone}',
       ]
 
-    # Extensions of any other arguments to the main command.
-    if extra_args:
-      delete_command.extend([
-          f'{arg}={value}' if value else f'{arg}'
-          for arg, value in extra_args.items()
-      ])
+      # Extensions of any other arguments to the main command.
+      if extra_args:
+        delete_command.extend([
+            f'{arg}={value}' if value else f'{arg}'
+            for arg, value in extra_args.items()
+        ])
 
-    delete_command.extend(vm_names)
+      delete_command.extend(vm_names)
 
     if verbose:
       print(delete_command)

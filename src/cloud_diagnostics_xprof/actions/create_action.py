@@ -22,7 +22,6 @@ that are specific to the the xprof instance.
 import argparse
 import ast
 from collections.abc import Mapping, Sequence
-from datetime import date
 import json
 import tempfile
 import time
@@ -36,7 +35,9 @@ from cloud_diagnostics_xprof.actions import list_action
 
 # Frozen to specific version of tensorboard-plugin-profile; updated periodically
 # Note used for install and adding to metadata + label.
-_TENSORBOARD_PLUGIN_PROFILE_VERSION = '2.20.2'
+_TENSORBOARD_PLUGIN_PROFILE_VERSION = '2.20.4'
+
+_GKE_TENSORBOARD_REPLICA_COUNT = 3
 
 _DEP_INSTALL_URL = 'https://github.com/AI-Hypercomputer/cloud-diagnostics-xprof/blob/main/README.md#install-dependencies'
 _WAIT_TIME_IN_SECONDS = 20
@@ -174,15 +175,72 @@ _DEFAULT_EXTRA_ARGS_DESCRIBE: Mapping[str, str] = {
 
 
 class Create(action.Command):
-  """A command to delete a xprofiler instance."""
+  """A command to create a xprofiler instance."""
+
   # To ensure extra args provided by user are consistent with the YAML's format.
   _YAML_TEMPLATE_REPLACEMENT_FORMAT = {
       '-': '_',
   }
-  _BASE_YAML_TEMPLATE = """apiVersion: v1
-kind: Pod
+  _BASE_YAML_TEMPLATE = """apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: {pod_name}
+ name: xprofiler-{unique_id}-tb
+ namespace: {namespace}
+ labels:
+   app: xprofiler
+   instance: xprofiler-{unique_id}
+   role: xprofiler-tb-deployment
+spec:
+ selector:
+   matchLabels:
+     instance: xprofiler-{unique_id}
+     role: xprofiler-tb
+ template:
+   metadata:
+     labels:
+       role: xprofiler-tb
+       instance: xprofiler-{unique_id}
+   spec:
+     serviceAccountName: {service_account_name}
+     containers:
+     - name: tensorboard
+       image: {tensorboard_image}
+       args: [
+         "tensorboard",
+         "--logdir={log_directory}",
+         "--bind_all",
+         "--port={pod_port}",
+         "--verbosity=0" # INFO level
+       ]
+       ports:
+       - containerPort: {pod_port}
+       resources:
+         limits:
+           cpu: 1000m
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: xprofiler-{unique_id}-tb-service
+  namespace: {namespace}
+  labels:
+    app: xprofiler
+    instance: xprofiler-{unique_id}
+spec:
+  selector:
+    instance: xprofiler-{unique_id}
+    role: xprofiler-tb
+  ports:
+  - protocol: TCP
+    port: 80  # Replace with your desired Service port
+    targetPort: {pod_port}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: xprofiler-{unique_id}-agent-service
   namespace: {namespace}
   annotations:
     xprofiler-version: {xprofiler_version}
@@ -194,40 +252,59 @@ metadata:
     tensorboard_plugin_profile: {tensorboard_plugin_profile_version}
     region: {region}
     zone: {zone}
+    instance: xprofiler-{unique_id}
+    role: xprofiler-proxy-service
 spec:
-  hostNetwork: true
-  serviceAccountName: {service_account_name}
-  initContainers:
-  - name: proxy-init
-    image: google/cloud-sdk:slim
-    env:
-        - name: POD_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.name
-        - name: POD_NAMESPACE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
-    command:
-      - /bin/bash
-      - -c
-      - |
-        set -euo pipefail
-        PROXY_CONFIG_DIR="/etc/proxy-agent"
-        CONFIG_FILE="${{PROXY_CONFIG_DIR}}/proxy-agent-config.json"
-        ENV_FILE="${{PROXY_CONFIG_DIR}}/proxy-{pod_name}.env"
+  clusterIP: None  # This makes it a headless service
+  selector:
+    instance: xprofiler-{unique_id}
+    role: xprofiler-proxy
+  ports:
+  - protocol: TCP
+    port: 8083  # The port on which the service will be exposed
+    targetPort: 8083  # The port on the container to which traffic should be directed
 
-        LOG_DIRECTORY="{log_directory}"
-        PORT="{pod_port}"
-        REGION="{region}"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+ name: xprofiler-{unique_id}-proxy
+ namespace: {namespace}
+ labels:
+   app: xprofiler
+   instance: xprofiler-{unique_id}
+spec:
+ replicas: 1
+ selector:
+   matchLabels:
+     instance: xprofiler-{unique_id}
+     role: xprofiler-proxy
+ template:
+   metadata:
+     labels:
+       app: xprofiler
+       instance: xprofiler-{unique_id}
+       role: xprofiler-proxy
+   spec:
+     hostNetwork: true
+     serviceAccountName: {service_account_name}
+     initContainers:
+     - name: proxy-init
+       image: google/cloud-sdk:slim
+       command:
+       - /bin/bash
+       - -c
+       - |
 
         echo "INFO: Getting kubectl..."
         apt-get install -y kubectl
 
-        echo "INFO: Creating proxy agent config directory ${{PROXY_CONFIG_DIR}}."
-        mkdir -p ${{PROXY_CONFIG_DIR}}
-
+        REGION="{region}"
+        CONFIG_DIR="/tmp/configs"
+        CONFIG_FILE="${{CONFIG_DIR}}/proxy-agent-config.json"
+        ENV_FILE="${{CONFIG_DIR}}/proxy.txt"
+        echo "Creating config directory."
+        mkdir -p ${{CONFIG_DIR}}
 
         echo "INFO: Copying proxy agent config from GCS..."
         gcloud storage cp gs://dl-platform-public-configs/proxy-agent-config.json ${{CONFIG_FILE}}
@@ -240,110 +317,85 @@ spec:
         fi
         echo "INFO: Proxy URL: ${{PROXY_URL}}"
 
-        echo "INFO: Fetching instance identity token from metadata server..."
         VM_ID=$(curl --fail -s -H 'Metadata-Flavor: Google' "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?format=full&audience=${{PROXY_URL}}/request-endpoint")
-        echo "INFO: VM_ID: ${{VM_ID}}"
+        echo "VM_ID: ${{VM_ID}}"
 
-        echo "INFO: Requesting backend endpoint from proxy service..."
         ACCESS_TOKEN=$(gcloud auth print-access-token)
         RESULT_JSON=$(curl --fail -s -H "Authorization: Bearer ${{ACCESS_TOKEN}}" -H "X-Inverting-Proxy-VM-ID: ${{VM_ID}}" -d "" "${{PROXY_URL}}/request-endpoint")
-        echo "INFO: RESULT_JSON: ${{RESULT_JSON}}"
+        echo "RESULT_JSON: ${{RESULT_JSON}}"
 
         BACKEND_ID=$(echo "${{RESULT_JSON}}" | python3 -c "import json, sys; print(json.load(sys.stdin)['backendID'])")
-        echo "INFO: BACKEND_ID: ${{BACKEND_ID}}"
-
-        # Add https:// to the hostname to create a valid URL.
+        echo "BACKEND_ID: ${{BACKEND_ID}}"
         HOSTNAME=$(echo "${{RESULT_JSON}}" | python3 -c "import json, sys; print(json.load(sys.stdin)['hostname'])")
+        echo "HOSTNAME: ${{HOSTNAME}}"
+
         EXTERNAL_PROXY_URL="https://${{HOSTNAME}}"
-        echo "INFO: EXTERNAL_PROXY_URL: ${{EXTERNAL_PROXY_URL}}"
-
-        echo "INFO: Writing environment file for proxy agent..."
-        # This file will be sourced by the proxy-agent sidecar
-        {{
-          echo "export BACKEND_ID='${{BACKEND_ID}}'"
-          echo "export PROXY='${{PROXY_URL}}/'"
-          echo "export SHIM_WEBSOCKETS='true'"
-          echo "export SHIM_PATH='websocket-shim'"
-          echo "export PORT='${{PORT}}'"
-        }} > ${{ENV_FILE}}
-
         echo "INFO: Applying annotation 'proxy-url=${{EXTERNAL_PROXY_URL}}'..."
-        kubectl annotate pod "${{POD_NAME}}" --namespace "${{POD_NAMESPACE}}" "proxy-url=${{EXTERNAL_PROXY_URL}}" --overwrite
+        kubectl annotate service "xprofiler-{unique_id}-agent-service" --namespace "{namespace}" "proxy-url=${{EXTERNAL_PROXY_URL}}" --overwrite
 
         echo "Proxy will be available at: ${{EXTERNAL_PROXY_URL}}"
         echo "SUCCESS: Init container finished."
 
-    volumeMounts:
-    - name: {proxy_config_volume}
-      mountPath: /etc/proxy-agent
+        echo "TB service host ${{XPROFILER_{unique_id_upper_case_dash_only}_TB_SERVICE_SERVICE_HOST}}"
 
-  containers:
-  - name: tensorboard
-    image: {tensorboard_image}
-    args: [
-      "tensorboard",
-      "--logdir={log_directory}",
-      "--bind_all",
-      "--port={pod_port}",
-    ]
-    ports:
-    - containerPort: {pod_port}
-    volumeMounts:
-    - name: {tensorboard_logs_volume}
-      mountPath: /tmp
+        {{
+         echo "export PROXY='${{PROXY_URL}}/'"
+         echo "export BACKEND_ID='${{BACKEND_ID}}'"
+         echo "export HOSTNAME='${{XPROFILER_{unique_id_upper_case_dash_only}_TB_SERVICE_SERVICE_HOST}}:80'"
+         echo "export SHIM_WEBSOCKETS='true'"
+         echo "export SHIM_PATH='websocket-shim'"
+        }} > ${{ENV_FILE}}
 
-  # Sources environment file created by init container & then starts the agent.
-  # See https://github.com/google/inverting-proxy/blob/master/agent/Dockerfile
-  - name: proxy-agent
-    image: gcr.io/inverting-proxy/agent:latest
-    # It sources the environment variables and then executes the agent
-    # binary with the required command-line flags.
-    command:
-      - /bin/bash
-      - -c
-      - |
-        # Use shell safety features
-        set -euo pipefail
+       volumeMounts:
+       - name: proxy-volume
+         mountPath: /tmp/configs
+     containers:
+     - name: proxy-agent
+       image: gcr.io/inverting-proxy/agent:latest
+       command:
+       - /bin/bash
+       - -c
+       - |
+        source /tmp/configs/proxy.txt
 
-        # Load the dynamic variables from the file created by the init container
-        echo "INFO: Sourcing environment from /etc/proxy-agent/proxy-{pod_name}.env"
-        source /etc/proxy-agent/proxy-{pod_name}.env
-
-        # The 'exec' command replaces the shell process with the agent process,
-        # which is a best practice for running applications in containers.
-        echo "INFO: Starting proxy-forwarding-agent with configured flags..."
-        # Omitting other flags to use their default values from the Dockerfile
         exec /opt/bin/proxy-forwarding-agent \
-          "--proxy=${{PROXY}}" \
-          "--backend=${{BACKEND_ID}}" \
-          "--host=localhost:${{PORT}}" \
-          "--shim-websockets=${{SHIM_WEBSOCKETS}}" \
-          "--shim-path=${{SHIM_PATH}}"
-    volumeMounts:
-    - name: {proxy_config_volume}
-      mountPath: /etc/proxy-agent
-      readOnly: true
+         "--backend=${{BACKEND_ID}}" \
+         "--proxy=${{PROXY}}" \
+         "--host=${{HOSTNAME}}" \
+         "--shim-websockets=${{SHIM_WEBSOCKETS}}" \
+         "--shim-path=${{SHIM_PATH}}"
+       volumeMounts:
+       - name: proxy-volume
+         mountPath: /tmp/configs
+         readOnly: true
+     volumes:
+     # Shared between the init and proxy-agent containers; passes dynamic config.
+     - name: proxy-volume
+       emptyDir: {{}}
 
-  volumes:
-  # Shared between the init and proxy-agent containers; passes dynamic config.
-  - name: {proxy_config_volume}
-    emptyDir: {{}}
-  # Contains TensorBoard logs.
-  - name: {tensorboard_logs_volume}
-    persistentVolumeClaim:
-      claimName: {tensorboard_logs_volume}-pvc
 ---
-apiVersion: v1
-kind: PersistentVolumeClaim
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
 metadata:
-  name: {tensorboard_logs_volume}-pvc
+  name: xprofiler-{unique_id}-autoscaling
   namespace: {namespace}
+  labels:
+    app: xprofiler
+    instance: xprofiler-{unique_id}
 spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: {tensorboard_logs_volume_size}
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: xprofiler-{unique_id}-tb
+  minReplicas: 1
+  maxReplicas: 36
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 60  # Target CPU utilization (percentage)
   """
 
   def __init__(self):
@@ -400,9 +452,7 @@ spec:
     create_parser.add_argument(
         '--auto-delete-on-failure-off',
         action='store_true',
-        help=(
-            'Will not delete the VM if failure occurs.'
-        ),
+        help='Will not delete the VM if failure occurs.',
     )
     create_parser.add_argument(
         '--gke',
@@ -433,8 +483,8 @@ spec:
 
     Args:
       args: The arguments parsed from the command line.
-      extra_args: Any extra arguments to pass to the command; will overwrite
-        any default args.
+      extra_args: Any extra arguments to pass to the command; will overwrite any
+        default args.
       verbose: Whether to print the command and other output.
 
     Returns:
@@ -450,8 +500,9 @@ spec:
     labels = {
         self.XPROFILER_VERSION_LABEL_KEY: self.XPROFILER_VERSION,
         'tensorboard_plugin_profile': (
-            _TENSORBOARD_PLUGIN_PROFILE_VERSION
-            .replace('.', '-')  # No dots; dashes are ok.
+            _TENSORBOARD_PLUGIN_PROFILE_VERSION.replace(
+                '.', '-'
+            )  # No dots; dashes are ok.
         ),
     }
     # Allow labels from extra_args to be passed; append to hardcoded labels.
@@ -569,7 +620,7 @@ spec:
       *,
       args: argparse.Namespace,
       verbose: bool = False,
-    ) -> None:
+  ) -> None:
     """Validates args for the main command and raises an error if invalid.
 
     Intended to check arguments passed before the command is run.
@@ -588,9 +639,7 @@ spec:
         bucket_name=args.log_directory,
         verbose=verbose,
     ):
-      raise ValueError(
-          f'Log directory {args.log_directory} does not exist.'
-      )
+      raise ValueError(f'Log directory {args.log_directory} does not exist.')
 
   def _build_suggest_zones_for_machine_type_command(
       self,
@@ -614,7 +663,7 @@ spec:
         'machine-types',
         'list',
         '--filter',
-        f'name=\'{machine_type}\'',
+        f"name='{machine_type}'",
         '--format',
         'value(zone)',
     ]
@@ -770,19 +819,66 @@ spec:
     Returns:
       The output of the command.
     """
+
+    if verbose:
+      print('Checking if VM already exists.')
+    list_command = list_action.List()
+    list_args = argparse.Namespace(
+        zones=[],
+        log_directory=[
+            args.log_directory,  # Ensure this is treated as one item.
+        ],
+        vm_name=None,
+        filter=None,
+        gke=True,
+        verbose=verbose,
+    )
+    list_command_output = list_command.run(list_args, verbose=verbose)
+    if verbose:
+      print(list_command_output)
+    existing_items = json.loads(list_command_output)
+
+    # Find gke instances for specified log directory
+    instances_for_log_directory = json.loads(
+        list_command.filter_pods_by_log_directory(
+            existing_items, log_directories=args.log_directory, verbose=verbose
+        )
+    ).get('items', [])
+
+    # Ask user if they want to create another instance or quit.
+    if instances_for_log_directory:
+      print(f'Instance for {args.log_directory} already exists.\n')
+      # Display the instances & information to the user.
+      list_command.display(
+          display_str=list_command_output,
+          args=list_args,
+          verbose=verbose,
+      )
+
+      # Prompt user if they want to continue or quit.
+      message_to_user = (
+          'Do you want to continue to create another instance with the same '
+          'log directory? (y/n)\n'
+      )
+      # Don't proceed is user does not say 'Y'/'y'
+      user_input = input(message_to_user).lower()
+      if user_input != 'y':
+        print('Exiting...')
+        stdout = list_command_output
+        return stdout
+
+    # kubernetes has limits on name lenght < 64!
+    unique_id = f'{uuid.uuid4()}'
+
     all_outputs: list[str] = []
     ### STEPS ###
     # Build the YAML file from args inputed.
-    unique_pod_name = (
-        'xprofiler-pod'
-        f'-{date.today().strftime("%Y%m%d%H%M%S")}'
-        f'-{uuid.uuid4()}'
-    )
     # Get region from the zone in args by ignoring the last dash-separated part.
     region = args.zone.rsplit('-', 1)[0]
     yaml_params = dict(
-        pod_name=unique_pod_name,
         namespace=self.DEFAULT_NAMESPACE,
+        unique_id=unique_id,
+        unique_id_upper_case_dash_only=unique_id.replace('-', '_').upper(),
         xprofiler_version_label_key=self.XPROFILER_VERSION_LABEL_KEY,
         xprofiler_version=self.XPROFILER_VERSION,
         tensorboard_plugin_profile_version=_TENSORBOARD_PLUGIN_PROFILE_VERSION,
@@ -794,10 +890,9 @@ spec:
             'us-central1-docker.pkg.dev/deeplearning-images/reproducibility/'
             f'xprofiler:tb-plugin-{_TENSORBOARD_PLUGIN_PROFILE_VERSION}'
         ),
+        tb_replica_count=_GKE_TENSORBOARD_REPLICA_COUNT,
         pod_port='9001',
-        tensorboard_logs_volume='xprofiler-tensorboard-logs',
         proxy_config_volume='xprofiler-proxy-config',
-        tensorboard_logs_volume_size='10Gi',
     )
     if verbose:
       print('====(DEFAULT) YAML PARAMS===')
@@ -842,16 +937,53 @@ spec:
         yaml_file.name,
     ]
     create_pod_output = self._run_command(create_pod_command, verbose=verbose)
+
     all_outputs.append(create_pod_output)
     if verbose:
-      print('====POD CREATION COMMAND===')
+      print('====DEPLOYMENT CREATION COMMAND===')
       print(create_pod_command)
-      print('====POD CREATION OUTPUT===')
+      print('====DEPLOYMENT CREATION OUTPUT===')
       print(create_pod_output)
+
+    # Waiting when pod will be started.
+    timer = 0
+    while timer < _MAX_WAIT_TIME_IN_SECONDS:
+      print('Waiting deployment...')
+
+      time.sleep(_WAIT_TIME_IN_SECONDS)
+      timer += _WAIT_TIME_IN_SECONDS
+
+      proxy_url_output = self._run_command(
+          [
+              'kubectl',
+              'get',
+              'service',
+              '--field-selector',
+              f'metadata.name=xprofiler-{unique_id}-agent-service',
+              '--namespace',
+              self.DEFAULT_NAMESPACE,
+              '-o',
+              "jsonpath='{.items[*].metadata.annotations.proxy-url}'",
+          ],
+          verbose=verbose,
+      )
+
+      # remove ' which added by some reason for deployments into output
+      proxy_url_output = proxy_url_output.replace("'", '')
+
+      if proxy_url_output.strip():
+        # Got proxy url, good to finish
+        print(f'\nStarted on URL {proxy_url_output}')
+        return '\n'.join(all_outputs)
+
     # Verify the pod/deployment was created successfully
     # Display the pod/deployment to the user
     # Give the URL to access TB
 
+    print(
+        'Timed out to wait XProfiler start after'
+        f' {_MAX_WAIT_TIME_IN_SECONDS} seconds.'
+    )
     return '\n'.join(all_outputs)
 
   def run_gce_creation(
@@ -934,12 +1066,12 @@ spec:
       if verbose:
         print(f'Command failed. Subprocess error:\n{e}')
       # Check if the error is due to an invalid machine type.
-      if 'Invalid value for field \'resource.machineType\'' in str(e):
+      if "Invalid value for field 'resource.machineType'" in str(e):
         # Print out command away from suggested zones in case of another error.
         machine_type_zone_command = (
-            f'gcloud compute machine-types list'
+            'gcloud compute machine-types list'
             f' --filter="name={args.machine_type}"'
-            f' --format="value(zone)"'
+            ' --format="value(zone)"'
         )
         message_for_checking_machine_type = (
             f'Please check the machine type w/ {args.zone} and try again. '
@@ -972,6 +1104,8 @@ spec:
       # Extra args are separately needed for the describe command.
       json_output = dict()
       try:
+        if verbose:
+          print(f'Checking if started for {args.log_directory}...')
         client = storage.Client()
         bucket_name = self._bucket_from_log_directory(args.log_directory)
         file_path = self._filepath_from_log_directory(args.log_directory)
@@ -980,6 +1114,7 @@ spec:
           print(f'bucket: {bucket}')
           print(f'file: {file_path}')
         if storage.Blob(bucket=bucket, name=file_path).exists(client):
+          print(f'Started for {bucket} and path {file_path}...')
           json_output = storage.Blob(
               bucket=bucket, name=file_path
           ).download_as_string(client)
@@ -1042,9 +1177,7 @@ spec:
           )
       )
     else:  # Setup failed; perform any cleanup.
-      print(
-          'Unable to set up instance. Initiating cleanup.\n'
-      )
+      print('Unable to set up instance. Initiating cleanup.\n')
 
       # Delete the VM that was created unless user specified otherwise.
       if args.auto_delete_on_failure_off:
@@ -1098,7 +1231,8 @@ spec:
 
     # Rebuild extra_args to remove the keys that were moved to args.
     new_extra_args = {
-        key: value for key, value in extra_args.items()
+        key: value
+        for key, value in extra_args.items()
         if key not in extra_args_to_remove
     }
 
