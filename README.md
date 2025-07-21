@@ -47,6 +47,8 @@ Xprofiler can be setup on user's workstation/cloudtop or on your TPU VM.
 
 ### Install Dependencies
 
+#### `gcloud`
+
 `xprofiler` relies on using [gcloud](https://cloud.google.com/sdk).
 
 The first step is to follow the documentation to [install](https://cloud.google.com/sdk/docs/install).
@@ -62,6 +64,10 @@ gcloud auth
 # Setup auth for client libraries
 gcloud auth application-default login
 ```
+
+#### `kubectl`
+
+Required only if `xprofiler` will be used in GKE mode. [How to install `kubectl`](https://cloud.google.com/kubernetes-engine/docs/how-to/cluster-access-for-kubectl)
 
 ### Setup cloud-diagnostic-xprof Package
 
@@ -260,7 +266,7 @@ During `create`, users will be prompted if they would like to create a second
 instance for the same GCS path. Pressing anything but `Y` or `y` will exit the
 program.
 
-```
+```bash
 $ xprofiler create -z <zone> -l gs://<some-bucket>
 
 Instance for gs://<some-bucket> already exists.
@@ -298,7 +304,7 @@ browsers.
 
 > Note: `-z (--zone)` and `-l (--log_directory)` are mandatory arguments.
 
-```
+```bash
 xprofiler connect -z $ZONE -l $GCS_PATH -m ssh
 
 xprofiler instance can be accessed at http://localhost:6006.
@@ -768,7 +774,7 @@ command that can be used to determine a zone with the given machine type.
 
 Usage details:
 
-```
+```bash
 xprofiler create
   [--help]
   --log-directory GS_PATH
@@ -822,7 +828,7 @@ This command is used to list a VM instances created by the `xprofiler` tool.
 
 Usage details:
 
-```
+```bash
 xprofiler list
   [--help]
   [--zones ZONE_NAME [ZONE_NAME ...]]
@@ -886,7 +892,7 @@ This command is used to delete VM instances, focused on those created by the
 
 Usage details:
 
-```
+```bash
 xprofiler delete
   [--help]
   --zone ZONE_NAME
@@ -908,7 +914,7 @@ Specifically `gs://<bucket-name>/<run-name>/plugins/profile/` if given
 
 Usage details:
 
-```
+```bash
 xprofiler capture
   [--help]
   --log-directory GS_PATH
@@ -926,7 +932,7 @@ xprofiler capture
 This provides the basic usage guide for the `xprofiler capture` subcommand.
 
 #### `xprofiler connect --help`
-```
+```bash
 xprofiler connect
   [--help]
   --log-directory GS_PATH
