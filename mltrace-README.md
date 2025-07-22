@@ -46,19 +46,26 @@ For using mltrace, you need to clone [Perfetto](https://github.com/google/perfet
 and compile [perfetto_trace.proto](https://github.com/google/perfetto/protos/perfetto/trace/perfetto_trace.proto).
 Instructions for this are in the next section.
 
-- Install [protoc](https://grpc.io/docs/protoc-installation/).
-`sudo apt install protobuf-compiler` or `brew install protobuf`
+- Install [protoc](https://grpc.io/docs/protoc-installation/):
+`sudo apt install protobuf-compiler` or `brew install protobuf` or
 
-- Install pandas.
+```
+PB_REL="https://github.com/protocolbuffers/protobuf/releases"
+curl -LO $PB_REL/download/v29.3/protoc-29.3-linux-x86_64.zip
+unzip protoc-29.3-linux-x86_64.zip -d $HOME/.local
+export PATH="$PATH:$HOME/.local/bin"
+```
+
+- Install pandas:
 `pip install pandas`
 
-- You'll also need to install the google package and make sure it's up-to-date.
+- You'll also need to install the google package and make sure it's up-to-date:
 `pip install --upgrade google-api-python-client`
 
 
 ## Installation
 
-Clone cloud-diagnostics-xprof and Perfetto.
+Clone `cloud-diagnostics-xprof` and `Perfetto`:
 
 ```
 git clone https://github.com/AI-Hypercomputer/cloud-diagnostics-xprof.git
@@ -75,4 +82,62 @@ python3 run_mltrace.py -f <json_or_csv_filepath> -j <jobset_name>
 The output will be a trace file stored under the same directory as your input
 file. Upload the output file to [perfetto.dev](https://perfetto.dev/).
 
-See the example use of the tool [here](mltrace-example.md).
+## Example usage
+
+### Step 1: Download the logs
+
+The script reads logs from a JSON file. The first step is to copy logs to JSON.
+
+#### Option a: Download from GCP console
+
+You can download your workload logs from the GCP console directly. See the
+screenshot below.
+
+Note that this option has a max limit of 10k on the number of logs to download.
+If you're looking to download more logs. See
+[Option (b)](#option-b-export-the-logs-from-sink).
+
+<img src="docs/images/ex1-download-1.png" width="700">
+<img src="docs/images/ex1-download-2.png" width="500">
+
+#### Option b: Export the logs from sink
+
+You can create a sink and export your logs as mentioned on the second screenshot
+above. If you do not have a custom sink for your project, all logs are stored in
+the _Default sink by default.
+
+```
+LOG_SINK="_Default"  # Modify if using a custom sink
+BUCKET={YOUR_BUCKET_NAME}
+LOG_FILTER={YOUR_LOG_FILTER}  # e.g., 'resource.type="k8s_container" resource.labels.location="us-west1" resource.labels.pod_name="test1" timestamp > "2025-07-17T01:00:00.0Z"'
+PROJECT={YOUR_PROJECT_ID}
+
+gcloud logging copy ${LOG_SINK} storage.googleapis.com/${BUCKET} --location=global --log-filter=${LOG_FILTER} --project=${PROJECT}
+
+# Download logs from GCS.
+mkdir logs
+PATH= ..  # Find the GCS path to the log files.
+gsutil -m cp -r "gs://${BUCKET}/{$PATH}" logs/
+
+# Merge with the below python commands.
+import pandas as pd
+read_files = glob.glob("logs/*.json")
+output_list = []
+for f in read_files:
+  output_list.append(pd.read_json(f))
+r = pd.concat(output_list)
+r.to_json("merged.json", orient='records', lines=True)
+```
+
+### Step 2: Run the mltrace tool
+
+```
+python3 run_mltrace.py -f <filepath> -j <jobset_name>
+```
+
+### Step 3: Upload the traces on Perfetto
+
+Got to https://perfetto.dev/, click on `Trace Viewer` and upload the trace file.
+
+![Upload to Perfetto](docs/images/ex1-perfetto.png "Upload to Perfetto")
+
