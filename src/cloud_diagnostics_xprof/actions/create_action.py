@@ -455,6 +455,13 @@ spec:
         help='Will not delete the VM if failure occurs.',
     )
     create_parser.add_argument(
+        '--skip-creation-if-exists',
+        action='store_true',
+        help=(
+            'Will not create the VM if an instance with the same bucket exists.'
+        ),
+    )
+    create_parser.add_argument(
         '--gke',
         action='store_true',
         help=(
@@ -855,6 +862,11 @@ spec:
           verbose=verbose,
       )
 
+      if args.skip_creation_if_exists:
+        print('Exiting...')
+        stdout = list_command_output
+        return stdout
+
       # Prompt user if they want to continue or quit.
       message_to_user = (
           'Do you want to continue to create another instance with the same '
@@ -1035,6 +1047,10 @@ spec:
           verbose=verbose,
       )
       print('\n')  # Just to make it visually clearer for the user.
+      if args.skip_creation_if_exists:
+        print('Exiting...')
+        stdout = list_command_output
+        return stdout
 
       # Prompt user if they want to continue or quit.
       message_to_user = (
