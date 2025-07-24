@@ -287,6 +287,145 @@ You can access it via following,
 Instance is hosted at xprof-<uuid> VM.
 ```
 
+### Create Xprofiler - GKE
+
+#### Setup
+
+##### Prepare Cluster
+
+`xprofiler` in GKE mode uses capacity provided by cluster. `xprofiler` auto
+scale pods with Tensorboard but cluster is responsible to provide capacity
+predefined or auto scaled as well.
+
+Current `xprofiler` GKE setup does not post any memory constraints to pods but
+required at least `1 cpu`. Please select capacity with at least `16 gb` of RAM
+per cluster node.
+
+##### Cluster to GCS Permissions
+
+1.  If existing Nodes used validate that it has `Access Scope` with `Read Write`
+    permissions for `Storage`
+1.  If new will be created follow
+    https://screenshot.googleplex.com/3wuEqq7tUbKxPNP
+
+Todo: b/433155299 In this guide we configure both `Access Scope` and `IAM` to
+allow `xprofiler` access storage, in theory only second is required but it does
+not work for all cases.
+
+##### Create Namespace
+
+Note: Assume kubectl configured with specific testing cluster
+
+```bash
+kubectl create namespace xprofiler
+```
+
+##### Create Service Account
+
+Create Account:
+
+```bash
+kubectl --namespace=xprofiler create serviceaccount xprofiler
+```
+
+Create Service account on GCP:
+
+```bash
+# Define your project or use below to set to current project
+PROJECT_ID=$(gcloud config get-value project)
+echo "${PROJECT_ID}"
+
+# Creates service account for xprofiler on project
+gcloud iam service-accounts create xprofiler --project="${PROJECT_ID}"
+```
+
+Add GKE permissions:
+
+```bash
+cat > /tmp/xprofiler-role.yaml <<EOF
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pod-manager-role
+  namespace: xprofiler
+rules:
+- apiGroups: ["apps"]
+  resources: ["pods", "deployments", "services"]
+  verbs: ["get", "list", "watch", "create", "delete", "patch", "update"]
+- apiGroups: [""]
+  resources: ["pods", "deployments", "services"]
+  verbs: ["get", "list", "watch", "create", "delete", "patch", "update"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: xprofiler-pod-manager-binding
+  namespace: xprofiler
+subjects:
+- kind: ServiceAccount
+  name: xprofiler
+  namespace: xprofiler
+roleRef:
+  kind: Role
+  name: pod-manager-role
+  apiGroup: rbac.authorization.k8s.io
+
+EOF
+
+kubectl apply -f /tmp/xprofiler-role.yaml
+```
+
+Bind GCP Service Account to k8c Service Account
+
+```bash
+# GCP SA / K8s SA
+gcloud iam service-accounts add-iam-policy-binding xprofiler@"${PROJECT_ID}".iam.gserviceaccount.com \
+    --role roles/iam.workloadIdentityUser \
+    --member "serviceAccount:${PROJECT_ID}.svc.id.goog[xprofiler/xprofiler]"
+```
+
+Set annotation on K8s SA:
+
+```bash
+kubectl --namespace=xprofiler annotate serviceaccount xprofiler \
+    iam.gke.io/gcp-service-account=xprofiler@"${PROJECT_ID}".iam.gserviceaccount.com
+```
+
+##### Permissions to GCS buckets
+
+Note that the Service Account needs permissions to every GCS bucket used
+
+```bash
+# Set your GCS bucket to be used (no path only bucket)
+GCS=gs://<bucket>
+
+# Bucket Viewer permissions
+gcloud storage buckets add-iam-policy-binding "${GCS}" \
+    --member "serviceAccount:xprofiler@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --role "roles/storage.bucketViewer"
+# Object User permissions
+gcloud storage buckets add-iam-policy-binding "${GCS}" \
+    --member "serviceAccount:xprofiler@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --role "roles/storage.objectUser"
+```
+##### Create command
+
+```bash
+$ xprofiler create --gke -l $GCS -z us-central1-a
+Waiting deployment...
+Waiting deployment...
+Waiting deployment...
+Waiting deployment...
+
+Started on URL https://<some_id>-dot-us-central1.notebooks.googleusercontent.com
+```
+
+> Note: Link will be usable once 2 xprofiler* deployments are up and running. This can be validated from workload tab in 
+Pantheon GKE UI.
+
 ### Open `xprofiler` Instance
 
 ##### Using Proxy
