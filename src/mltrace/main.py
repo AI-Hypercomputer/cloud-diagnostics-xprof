@@ -33,7 +33,15 @@ def main():
     raise ValueError("No logs found!")
   data = log_parser.parse_logs(logs, args.jobname)
   if len(data) == 0:
-    raise ValueError("We could not parse any logs while the file was not empty."
-                     " Check the format of the logs.")
+    raise ValueError(
+        "We could not parse any logs while the file was not empty."
+        " Check the format of the logs."
+    )
   traces = perfetto_trace_utils.translate_to_traces(data)
-  perfetto_trace_utils.dump_traces(args.filename, traces)
+  html_output_filepath = perfetto_trace_utils.dump_traces(args.filename, traces)
+  print(
+      f"Saved the traces at {html_output_filepath}.\nNext steps:\n1. Run a"
+      " local HTTP server: `python -m http.server --bind 0.0.0.0 9919`.\n2."
+      f" Use a browser to connect to http://0.0.0.0:9919/{html_output_filepath}"
+      " to see the visualization of job events."
+  )

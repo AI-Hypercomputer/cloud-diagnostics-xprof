@@ -79,8 +79,29 @@ protoc --proto_path=perfetto/protos/perfetto/trace/ --python_out=perfetto/protos
 ```
 python3 run_mltrace.py -f <json_or_csv_filepath> -j <jobset_name>
 ```
-The output will be a trace file stored under the same directory as your input
-file. Upload the output file to [perfetto.dev](https://perfetto.dev/).
+The output will be a trace file and an HTML file stored under the same directory
+as your input file.
+
+## View the traces
+
+Either host a local HTTP server or manually upload the output file to
+[perfetto.dev](https://perfetto.dev/) for visualizing the traces.
+
+#### Option a: Host a local HTTP server
+
+Follow the instructions from the output of the tool:
+
+1. Run a local HTTP server: `python -m http.server --bind 0.0.0.0 9919`.
+2. Use a browser to connect to http://0.0.0.0:9919/<output_filename>.html.
+
+#### Option b: Upload to perfetto.dev manually
+
+The tool has created a ".gz" file of the same name as the HTML file. You can
+upload this file manually.
+
+Got to https://perfetto.dev/ > Click on `Trace Viewer` > Upload the ".gz" trace
+file.
+
 
 ## Example usage
 
@@ -136,9 +157,7 @@ r.to_json("merged.json", orient='records', lines=True)
 python3 run_mltrace.py -f <filepath> -j <jobset_name>
 ```
 
-### Step 3: Upload the traces on Perfetto
+### Step 3: Visualize the traces with Perfetto
 
-Got to https://perfetto.dev/, click on `Trace Viewer` and upload the trace file.
-
-![Upload to Perfetto](docs/images/ex1-perfetto.png "Upload to Perfetto")
+![Visualize with Perfetto](docs/images/ex1-perfetto.png "Visualize with Perfetto")
 

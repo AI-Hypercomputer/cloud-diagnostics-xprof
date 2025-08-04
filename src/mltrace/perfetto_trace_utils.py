@@ -21,6 +21,8 @@ import pathlib
 import re
 
 import pandas as pd
+import gzip, random, string
+from mltrace import constants
 from perfetto.protos.perfetto.trace.perfetto_trace_pb2 import Trace
 
 
@@ -160,9 +162,22 @@ def dump_traces(input_filepath: str, traces: bytes):
   Args:
     input_filepath (str): The path to the input file
     traces (bytes): The traces to dump
+  Returns:
+    str: The path to the html output file
   """
   p = pathlib.Path(input_filepath)
-  output_filepath = os.path.join(str(p.parent), p.stem + ".gz")
-  with open(output_filepath, "wb") as fp:
-    fp.write(traces)
-  print(f"The traces are saved at {output_filepath}.")
+  gz_output_filepath = os.path.join(str(p.parent), p.stem + ".gz")
+  html_output_filepath = os.path.join(str(p.parent), p.stem + ".html")
+  with open(gz_output_filepath, "wb") as fp:
+    fp.write(gzip.compress(traces))
+  with open(html_output_filepath, "w") as fp:
+    html_template = string.Template(constants.PERFETTO_TEMPLATE_HTML)
+    fp.write(
+        html_template.substitute(
+            dict(
+                trace_file=f"./{p.stem}.gz",
+                title=p.stem,
+            )
+        )
+    )
+  return html_output_filepath

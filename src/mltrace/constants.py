@@ -331,3 +331,113 @@ REDUNDANT_SEVERITY_IN_FILES = {
     "param_init.py": "INFO",
     "serialization.py": "INFO",
 }
+
+PERFETTO_TEMPLATE_HTML = r"""
+<!DOCTYPE html>
+<html>
+<head>
+  <title>MLTrace: $title </title>
+  <style>
+    html, body, iframe {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+
+    #loader {
+      background-color: #fde293;
+      width: 100%;
+      height: 100%;
+      position: absolute;
+    }
+
+    .loader {
+      width: 40px;
+      height: 40px;
+      background-color: #3c4043;
+
+      margin: 100px auto;
+      -webkit-animation: sk-rotateplane 1.2s infinite ease-in-out;
+      animation: sk-rotateplane 1.2s infinite ease-in-out;
+    }
+
+    @-webkit-keyframes sk-rotateplane {
+      0% { -webkit-transform: perspective(120px) }
+      50% { -webkit-transform: perspective(120px) rotateY(180deg) }
+      100% { -webkit-transform: perspective(120px) rotateY(180deg)  rotateX(180deg) }
+    }
+
+    @keyframes sk-rotateplane {
+      0% {
+        transform: perspective(120px) rotateX(0deg) rotateY(0deg);
+        -webkit-transform: perspective(120px) rotateX(0deg) rotateY(0deg)
+      } 50% {
+        transform: perspective(120px) rotateX(-180.1deg) rotateY(0deg);
+        -webkit-transform: perspective(120px) rotateX(-180.1deg) rotateY(0deg)
+      } 100% {
+        transform: perspective(120px) rotateX(-180deg) rotateY(-179.9deg);
+        -webkit-transform: perspective(120px) rotateX(-180deg) rotateY(-179.9deg);
+      }
+    }
+
+  </style>
+</head>
+<body>
+  <div id="loader">
+    <div class="loader"></div>
+  </div>
+
+  <iframe id="perfetto_iframe" src="https://ui.perfetto.dev?mode=embedded&hideSidebar=true" onload="iframeLoaded()" allow="usb; fullscreen" hidden></iframe>
+  <script>
+    function iframeLoaded() {
+      fetchAndOpen("$trace_file");
+    }
+    const ORIGIN = "https://ui.perfetto.dev";
+
+    async function fetchAndOpen(traceUrl) {
+      const ds = new DecompressionStream("gzip");
+      const resp = await fetch(traceUrl, {mode: 'cors'});
+      const blob = await resp.blob();
+
+      const decompressed_stream = blob.stream().pipeThrough(ds);
+
+      const decompressed_blob = await new Response(decompressed_stream).blob();
+
+      const arrayBuffer = await decompressed_blob.arrayBuffer();
+      let loader = document.getElementById('loader');
+      loader.remove();
+
+      let frame = document.getElementById('perfetto_iframe');
+      frame.style.display = "block";
+      let win = frame.contentWindow;
+      openTrace(win, arrayBuffer);
+    }
+
+    function openTrace(win, arrayBuffer) {
+      const timer = setInterval(() => win.postMessage('PING', ORIGIN), 50);
+
+      const onMessageHandler = (evt) => {
+        if (evt.data !== 'PONG') return;
+
+        // We got a PONG, the UI is ready.
+        window.clearInterval(timer);
+        window.removeEventListener('message', onMessageHandler);
+
+        const url = new URL(location.href);
+
+        win.postMessage({
+          perfetto: {
+            buffer: arrayBuffer,
+            title: 'MLTrace: $title',
+            url: url.toString(),
+          }}, ORIGIN);
+        };
+
+        window.addEventListener('message', onMessageHandler);
+      }
+    </script>
+  </body>
+  </html>
+"""
