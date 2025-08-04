@@ -107,6 +107,7 @@ above. If you do not have a custom sink for your project, all logs are stored in
 the _Default sink by default.
 
 ```
+# 1. Copy logs to GCS
 LOG_SINK="_Default"  # Modify if using a custom sink
 BUCKET={YOUR_BUCKET_NAME}
 LOG_FILTER={YOUR_LOG_FILTER}  # e.g., 'resource.type="k8s_container" resource.labels.location="us-west1" resource.labels.pod_name="test1" timestamp > "2025-07-17T01:00:00.0Z"'
@@ -114,12 +115,12 @@ PROJECT={YOUR_PROJECT_ID}
 
 gcloud logging copy ${LOG_SINK} storage.googleapis.com/${BUCKET} --location=global --log-filter=${LOG_FILTER} --project=${PROJECT}
 
-# Download logs from GCS.
+# 2. Download logs from GCS.
 mkdir logs
 PATH= ..  # Find the GCS path to the log files.
 gsutil -m cp -r "gs://${BUCKET}/{$PATH}" logs/
 
-# Merge with the below python commands.
+# 3. Merge the log files with the below python commands, if multiple files are created.
 import pandas as pd
 read_files = glob.glob("logs/*.json")
 output_list = []

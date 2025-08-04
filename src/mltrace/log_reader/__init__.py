@@ -12,17 +12,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""run_mltrace.py converts GCP workload logs into a sequence of Traces.
-
-The traces are grouped on multiple levels to make the logs easier to comprehend.
-To run this script, use the command below.
-
-python3 run_mltrace.py -f <json_or_csv_filepath> -j <jobset_name>
-
-The output of the script will be a .gz filepath which stores the traces.
-"""
-
-from mltrace import main
-
-if __name__ == "__main__":
-  main.main()
