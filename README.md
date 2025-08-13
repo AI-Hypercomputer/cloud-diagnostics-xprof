@@ -19,7 +19,6 @@ This repository contains 2 tools:
 
 1. [xprofiler](#xprofiler): Simplify profiling experience for XLA workloads!
 Documentation below.
-
 1. [mltrace](mltrace-README.md): Visualize your Cloud logs and debug faster! Follow the
 documentation at [mltrace-README.md](mltrace-README.md).
 
@@ -36,7 +35,7 @@ For more information about profiling with `xprof`, please see the `xprof`
 
 ## Quickstart
 
-Xprofiler can be setup on user's workstation/cloudtop or on your TPU VM.
+Xprofiler can be setup on user's workstation/cloudtop, on your TPU VM or Kubernetes.
 
 > Note:
 > Before setting up `xprofiler`, users will need to enable profile collection
@@ -425,6 +424,10 @@ Started on URL https://<some_id>-dot-us-central1.notebooks.googleusercontent.com
 
 > Note: Link will be usable once 2 xprofiler* deployments are up and running. This can be validated from workload tab in 
 Pantheon GKE UI.
+
+### Create with Pulumi
+
+[Xprofiler - GKE setup with Pulumi](xprofiler-with-pulumi.md)
 
 ### Open `xprofiler` Instance
 
