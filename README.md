@@ -59,7 +59,7 @@ ID are set.
 # setup project context
 gcloud init
 # setup auth for gcloud
-gcloud auth
+gcloud auth login
 # Setup auth for client libraries
 gcloud auth application-default login
 ```
