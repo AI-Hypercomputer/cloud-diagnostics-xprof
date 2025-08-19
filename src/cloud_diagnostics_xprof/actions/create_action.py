@@ -960,7 +960,8 @@ spec:
     # Waiting when pod will be started.
     timer = 0
     while timer < _MAX_WAIT_TIME_IN_SECONDS:
-      print('Waiting deployment...')
+      if verbose:
+        print('Waiting deployment...')
 
       time.sleep(_WAIT_TIME_IN_SECONDS)
       timer += _WAIT_TIME_IN_SECONDS
