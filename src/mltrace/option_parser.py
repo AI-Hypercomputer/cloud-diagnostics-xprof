@@ -17,6 +17,7 @@
 
 import argparse
 import datetime
+import logging
 import os
 
 from mltrace import constants
@@ -76,7 +77,16 @@ def getopts() -> argparse.Namespace:
       "-f", "--filename", help="Path to the CSV/JSON file that contains logs"
   )
   parser.add_argument("-j", "--jobname", help="Name of the job/jobset")
+  parser.add_argument("--loglevel", default="INFO",
+                      choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+                      help="Set the logging level (e.g., DEBUG, INFO, WARNING)")
   args = parser.parse_args()
+
+  # Set the logging level based on the command-line argument
+  numeric_level = getattr(logging, args.loglevel.upper(), None)
+  if not isinstance(numeric_level, int):
+    raise ValueError(f"Invalid log level: {args.loglevel}")
+  logging.getLogger().setLevel(numeric_level)
 
   validate_args(args)
   return args

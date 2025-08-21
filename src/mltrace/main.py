@@ -14,11 +14,18 @@
 
 """Main function body for mltrace.
 """
+import logging
 
 from mltrace import log_parser
 from mltrace import option_parser
 from mltrace import perfetto_trace_utils
 from mltrace.log_reader import file_log_reader
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 
 
 def get_logs(args):
@@ -29,19 +36,15 @@ def main():
   """Script main entry."""
   args = option_parser.getopts()
   logs = get_logs(args)
+  logger.info("Number of logs read: %d", len(logs))
   if len(logs) == 0:
     raise ValueError("No logs found!")
   data = log_parser.parse_logs(logs, args.jobname)
+  logger.info("Number of logs after parsing: %d", len(data))
   if len(data) == 0:
     raise ValueError(
         "We could not parse any logs while the file was not empty."
         " Check the format of the logs."
     )
   traces = perfetto_trace_utils.translate_to_traces(data)
-  html_output_filepath = perfetto_trace_utils.dump_traces(args.filename, traces)
-  print(
-      f"Saved the traces at {html_output_filepath}.\nNext steps:\n1. Run a"
-      " local HTTP server: `python -m http.server --bind 0.0.0.0 9919`.\n2."
-      f" Use a browser to connect to http://0.0.0.0:9919/{html_output_filepath}"
-      " to see the visualization of job events."
-  )
+  perfetto_trace_utils.dump_traces(args.filename, traces)

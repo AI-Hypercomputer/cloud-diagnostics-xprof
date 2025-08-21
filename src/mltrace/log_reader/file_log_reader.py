@@ -15,10 +15,14 @@
 """File log reader.
 """
 
+import logging
 import pathlib
 
-from . import log_reader
 import pandas as pd
+
+from . import log_reader
+
+logger = logging.getLogger(__name__)
 
 
 class FileLogReader(log_reader.LogReader):
@@ -33,8 +37,8 @@ class FileLogReader(log_reader.LogReader):
     Returns:
         pd.DataFrame: File logs
     """
-    logs = pd.read_csv(self._filename, sep=',')
-    print(f"Found {logs.size} records with columns: {logs.columns}")
+    logs = pd.read_csv(self._filename, sep=",")
+    logger.info("Found %d records with columns: %s", logs.size, logs.columns)
     return logs
 
   def _read_logs_from_json(self) -> pd.DataFrame:
@@ -49,7 +53,7 @@ class FileLogReader(log_reader.LogReader):
     except ValueError:
       # If that fails, it might be a JSON Lines file.
       logs = pd.read_json(self._filename, lines=True)
-    print(f"Found {logs.size} records with columns: {logs.columns}")
+    logger.info("Found %d records with columns: %s", logs.size, logs.columns)
     return logs
 
   def read_logs(self) -> pd.DataFrame:
@@ -62,6 +66,7 @@ class FileLogReader(log_reader.LogReader):
         ValueError if the given file is neither CSV nor JSON
     """
     file_ext = pathlib.Path(self._filename).suffix
+    logger.info("Starting the log reader for file: %s", self._filename)
     if file_ext == ".csv":
       logs = self._read_logs_from_csv()
     elif file_ext in [".json", ".jsonl"]:
@@ -70,4 +75,5 @@ class FileLogReader(log_reader.LogReader):
       raise ValueError(
           f"Invalid file type \"{file_ext}\". Supported: .csv and .json[l]"
       )
+    logger.debug("Log reader completed.")
     return logs

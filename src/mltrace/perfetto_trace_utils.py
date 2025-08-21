@@ -16,14 +16,18 @@
 """
 
 import datetime
+import gzip
+import logging
 import os
 import pathlib
 import re
+import string
 
-import pandas as pd
-import gzip, random, string
 from mltrace import constants
-from perfetto.protos.perfetto.trace.perfetto_trace_pb2 import Trace
+import pandas as pd
+from perfetto.protos.perfetto.trace import perfetto_trace_pb2
+
+logger = logging.getLogger(__name__)
 
 
 class Counter:
@@ -66,6 +70,7 @@ def translate_to_traces(df: pd.DataFrame) -> bytes:
   Returns:
     bytes: Trace events serialized into string format
   """
+  logger.debug("Starting the log->trace translation.")
   counter = Counter()
   clock_is_set = False
 
@@ -113,7 +118,7 @@ def translate_to_traces(df: pd.DataFrame) -> bytes:
       p.track_descriptor.process.pid = uuid
       p.track_descriptor.process.process_name = process_name
 
-  t = Trace()
+  t = perfetto_trace_pb2.Trace()
   p = add_packet(t)
   p.sequence_flags = p.SEQ_INCREMENTAL_STATE_CLEARED
 
@@ -121,9 +126,11 @@ def translate_to_traces(df: pd.DataFrame) -> bytes:
     value = df[df["podtype"] == key]
     w_uuid = next_counter()
     add_section(w_uuid, key, process_name=key)
+    logger.debug("Adding events for parent: %s", key)
     for section in value.section.unique():
       uuid = next_counter()
       add_section(uuid, section, parent=w_uuid)
+      logger.debug("Adding events for section: %s", section)
 
       def add_events(event, uuid=uuid):
         name = event.textPayload  # Marker color
@@ -153,6 +160,7 @@ def translate_to_traces(df: pd.DataFrame) -> bytes:
 
       value[value["section"] == section].apply(add_events, axis=1)
 
+  logger.debug("Log->trace translation completed")
   return t.SerializeToString()
 
 
@@ -162,14 +170,15 @@ def dump_traces(input_filepath: str, traces: bytes):
   Args:
     input_filepath (str): The path to the input file
     traces (bytes): The traces to dump
-  Returns:
-    str: The path to the html output file
   """
   p = pathlib.Path(input_filepath)
   gz_output_filepath = os.path.join(str(p.parent), p.stem + ".gz")
-  html_output_filepath = os.path.join(str(p.parent), p.stem + ".html")
+  logger.debug("Saving the traces at %s", gz_output_filepath)
   with open(gz_output_filepath, "wb") as fp:
     fp.write(gzip.compress(traces))
+
+  html_output_filepath = os.path.join(str(p.parent), p.stem + ".html")
+  logger.debug("Building the HTML at %s", html_output_filepath)
   with open(html_output_filepath, "w") as fp:
     html_template = string.Template(constants.PERFETTO_TEMPLATE_HTML)
     fp.write(
@@ -180,4 +189,12 @@ def dump_traces(input_filepath: str, traces: bytes):
             )
         )
     )
-  return html_output_filepath
+
+  logger.info(
+      "Saved the HTML at %s and traces at %s. You can either host the HTML for"
+      " visualization by running `python3 -m http.server --bind 0.0.0.0 9919`"
+      " from the output directory OR upload the trace file to"
+      " https://perfetto.dev.",
+      html_output_filepath,
+      gz_output_filepath,
+  )

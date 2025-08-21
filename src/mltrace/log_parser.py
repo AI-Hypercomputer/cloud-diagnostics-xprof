@@ -14,8 +14,13 @@
 
 """Parser for the logs that filters, groups and enriches the logs."""
 
-import pandas as pd
+import logging
+import warnings
+
 from mltrace import constants
+import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 def parse_mcjax(logs: pd.DataFrame, jobname: str) -> pd.DataFrame:
@@ -84,8 +89,17 @@ def filter_out_unnecessary_logs(logs: pd.DataFrame) -> pd.DataFrame:
       pd.DataFrame: Filtered logs
   """
   logs = logs[~logs["textPayload"].isin(constants.REDUNDANT_LOGS_EXACT)]
-  r = '|'.join(constants.REDUNDANT_LOGS_SUBSTR_MATCH)
-  logs = logs[~logs["textPayload"].str.contains(r, regex=True)]
+  r = "|".join(constants.REDUNDANT_LOGS_SUBSTR_MATCH)
+  with warnings.catch_warnings():
+    warnings.filterwarnings(
+        "ignore",
+        message=(
+            "This pattern is interpreted as a regular expression, and has match"
+            " groups.*"
+        ),
+        category=UserWarning,
+    )
+    logs = logs[~logs["textPayload"].str.contains(r, regex=True, na=False)]
   for filename, severity in constants.REDUNDANT_SEVERITY_IN_FILES.items():
     logs = logs[
         ~(
@@ -107,6 +121,7 @@ def parse_logs(logs: pd.DataFrame, jobname: str) -> pd.DataFrame:
   Returns:
       pd.DataFrame: Enriched logs
   """
+  logger.debug("Starting the log parser for jobname: %s", jobname)
   if "resource" in logs.columns:
     logs["resource.labels.pod_name"] = logs["resource"].apply(
         lambda x: x.get("labels").get("pod_name")
@@ -114,13 +129,17 @@ def parse_logs(logs: pd.DataFrame, jobname: str) -> pd.DataFrame:
     logs["resource.labels.container_name"] = logs["resource"].apply(
         lambda x: x.get("labels").get("container_name")
     )
+    logger.debug("Extracted resource labels from the logs.")
   logs["podtype"] = logs["resource.labels.pod_name"].str.extract(
       rf"{jobname}-(.*?)-"
   )
-  # todo: Use a better way to identify the workload.
+  # todo: Use a better way to identify a McJAX vs Pathways workload.
   if "slice" in logs["podtype"].values or "job" in logs["podtype"].values:
+    logger.info("McJAX workload detected.")
     logs = parse_mcjax(logs, jobname)
   else:
+    # Use the container name for defining the top-level section for Pathways.
+    logger.info("Pathways workload detected.")
     logs["podtype"] = logs["resource.labels.container_name"]
     logs = parse_pathways(logs)
 
@@ -136,8 +155,10 @@ def parse_logs(logs: pd.DataFrame, jobname: str) -> pd.DataFrame:
         lambda x: x.get("file") if not pd.isnull(x) else ""
     )
 
+  logger.debug("Filtering out unnecessary logs.")
   logs = filter_out_unnecessary_logs(logs)
 
   logs = add_section(logs)
 
+  logger.debug("Log parser completed.")
   return logs
