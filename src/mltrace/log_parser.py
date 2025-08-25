@@ -36,10 +36,10 @@ def parse_mcjax(logs: pd.DataFrame, jobname: str) -> pd.DataFrame:
   logs["worker_num"] = logs["resource.labels.pod_name"].str.extract(
       rf"{jobname}-.*?-(\d*?-\d*?)-"
   )
-  logs["podtype"] = constants.WORKER_GROUP_PREFIX + logs["worker_num"]
+  logs["parent"] = constants.WORKER_GROUP_PREFIX + logs["worker_num"]
   # slice#0 worker#0 is the Coordinator.
   logs.loc[
-      logs["podtype"] == constants.WORKER_GROUP_PREFIX + "0-0", "podtype"
+      logs["parent"] == constants.WORKER_GROUP_PREFIX + "0-0", "parent"
   ] = "Coordinator"
 
   return logs
@@ -54,7 +54,7 @@ def parse_pathways(logs: pd.DataFrame) -> pd.DataFrame:
   Returns:
       pd.DataFrame: Enriched logs
   """
-  logs.loc[logs["podtype"] == "rm", "podtype"] = "Resource Manager"
+  logs.loc[logs["parent"] == "rm", "parent"] = "Resource Manager"
 
   return logs
 
@@ -88,7 +88,12 @@ def filter_out_unnecessary_logs(logs: pd.DataFrame) -> pd.DataFrame:
   Returns:
       pd.DataFrame: Filtered logs
   """
-  logs = logs[~logs["textPayload"].isin(constants.REDUNDANT_LOGS_EXACT)]
+  logs = logs[
+      ~logs["textPayload"].isin(
+          constants.REDUNDANT_LOGS_EXACT
+          + constants.FILE_ONLY_REDUNDANT_LOGS_EXACT
+      )
+  ]
   r = "|".join(constants.REDUNDANT_LOGS_SUBSTR_MATCH)
   with warnings.catch_warnings():
     warnings.filterwarnings(
@@ -99,7 +104,7 @@ def filter_out_unnecessary_logs(logs: pd.DataFrame) -> pd.DataFrame:
         ),
         category=UserWarning,
     )
-    logs = logs[~logs["textPayload"].str.contains(r, regex=True, na=False)]
+    logs = logs[~logs["textPayload"].str.contains(r, regex=True)]
   for filename, severity in constants.REDUNDANT_SEVERITY_IN_FILES.items():
     logs = logs[
         ~(
@@ -130,17 +135,17 @@ def parse_logs(logs: pd.DataFrame, jobname: str) -> pd.DataFrame:
         lambda x: x.get("labels").get("container_name")
     )
     logger.debug("Extracted resource labels from the logs.")
-  logs["podtype"] = logs["resource.labels.pod_name"].str.extract(
+  logs["parent"] = logs["resource.labels.pod_name"].str.extract(
       rf"{jobname}-(.*?)-"
   )
-  # todo: Use a better way to identify a McJAX vs Pathways workload.
-  if "slice" in logs["podtype"].values or "job" in logs["podtype"].values:
+  # todo: Use a better way to identify the workload.
+  if "slice" in logs["parent"].values or "job" in logs["parent"].values:
     logger.info("McJAX workload detected.")
     logs = parse_mcjax(logs, jobname)
   else:
-    # Use the container name for defining the top-level section for Pathways.
     logger.info("Pathways workload detected.")
-    logs["podtype"] = logs["resource.labels.container_name"]
+    # Use the container name for defining the top-level section for Pathways.
+    logs["parent"] = logs["resource.labels.container_name"]
     logs = parse_pathways(logs)
 
   if "jsonPayload" in logs.columns:

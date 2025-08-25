@@ -46,8 +46,8 @@ def translate_to_traces(df: pd.DataFrame) -> bytes:
 
   The conversion logic builds a hierarchy of traces using the unique values of
   certain data frame columns.
-  For example, the "podtype" column determines the parent group. Within each
-  parent, the "section" column defines the sub-groups within the podtype.
+  For example, the "parent" column determines the parent group. Within each
+  parent, the "section" column defines the sub-groups within the parent.
   Here's an example hierarchy:
 
   |__ Coordinator
@@ -122,8 +122,8 @@ def translate_to_traces(df: pd.DataFrame) -> bytes:
   p = add_packet(t)
   p.sequence_flags = p.SEQ_INCREMENTAL_STATE_CLEARED
 
-  for key in df["podtype"].unique():
-    value = df[df["podtype"] == key]
+  for key in df["parent"].unique():
+    value = df[df["parent"] == key]
     w_uuid = next_counter()
     add_section(w_uuid, key, process_name=key)
     logger.debug("Adding events for parent: %s", key)

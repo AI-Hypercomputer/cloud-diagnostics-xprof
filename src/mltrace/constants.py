@@ -19,41 +19,64 @@ TIME_REGEXP = "%Y-%m-%dT%H:%M:%S.%f%z"
 WORKER_GROUP_PREFIX = "Slice-Worker "
 
 REGEX_SUBSTR_MATCH_ROW_HEADERS = {
-    "Some workers didn't report an error after ": "Node pool error",
+    "[E] Some workers didn't report an error after ": "Node pool error",
     "checkpoint": "Checkpoint",
-    "BAD_ICI": "BAD_ICI",
+    "[E] BAD_ICI": "BAD_ICI",
     "last_finished_run_id updated to": "Info",
-    "MegaScale Topology Discovery in progress. Missing hosts ": (
+    "[E] MegaScale Topology Discovery in progress. Missing hosts ": (
         "Missing hosts in Topology discovery"
     ),
     "Enqueueing program \\d+: [a-z0-9]+ to continuation queue": "Info",
     "Failed to call GetSessioInfo for worker": "Failed to call GetSessioInfo",
-    "failed to connect to all addresses": "Failed to connect",
+    "[E] failed to connect to all addresses": "Failed to connect",
     "MegaScale Topology Discovery": "MegaScale Topology Discovery",
 }
 
 REDUNDANT_LOGS_SUBSTR_MATCH = [
+    (
+        r"\\[\\d+\.\\d+\\]"
+        r" [anon|file|kernel|kernel_stack|pagetables|sec_pagetables|"
+        r"percpu|sock|vmalloc|shmem|file_mapped|file_dirty|file_writeback|"
+        r"swapcached|anon_thp|file_thp|shmem_thp|inactive_anon|active_anon|"
+        r"inactive_file|active_file|unevictable|slab_reclaimable|"
+        r"slab_unreclaimable|slab|workingset_refault_anon|"
+        r"workingset_refault_file|workingset_activate_anon|"
+        r"workingset_activate_file|workingset_restore_anon|"
+        r"workingset_restore_file|workingset_nodereclaim|pgscan|pgsteal|"
+        r"pgscan_kswapd|pgscan_direct|pgscan_khugepaged|pgsteal_kswapd|"
+        r"pgsteal_direct|pgsteal_khugepaged|pgfault|pgmajfault|pgrefill|"
+        r"pgactivate|pgdeactivate|pglazyfree|pglazyfreed|thp_fault_alloc|"
+        r"thp_collapse_alloc] \\d+"
+    ),
+    "stack used: \\d+ KiB of \\d+ KiB",
     "Sending to [0-9.]+:\\d+ on interface",
     "Created \\d+ channels for \\d+ interfaces on slice",
     "^argv\\[\\d+\\]: '",
     "Worker Address: [a-z0-9-_.]+:\\d+",
+    "Notifying error handler:",
     "Starting launch_id for device_set_hash",
     "Constructing tf.data.Dataset",
     "Creating directories: ",
     "Driver opened.",
+    "No topology specified, using auto-topology",
     "Applying remat on ",
     "All instances are ready for",
+    "Dumping Debug Info for",
     "CallbackRegistryLogger dumping to file",
+    "Writing to file:",
     "All directories created",
     "Created communicator.",
+    "source_endpoint:",
     "Received topology discovery response: go/debugonly",
     "Sending topology discovery request: go/debugonly",
     "gRPC experiments",
     "Load dataset info from",
     "Keeping the one from code.",
+    "Debug dumping triggered.",
     "Registering error handler with name",
     "Found \\d+ TPU .* chips.",
     "Starting JAX distributed service on",
+    "platforms/xla/megascale/runtime/executor/executor.cc:",
     "Connecting to JAX distributed service on ",
     "Using enhanced global barrier with ",
     "Using \\d+ from .* as SliceBuilder worker service port.",
@@ -74,13 +97,20 @@ REDUNDANT_LOGS_SUBSTR_MATCH = [
     "\\(HLO module .*\\): Executable fingerprint",
     "\\(HLO module .*\\): Host transfer fingerprint",
     "LatencyHidingScheduler current memory usage: ",
-    "LIBTPU_INIT_ARGS='-",
-    "Devices: \\[MegaScalePjRtDevice\\(",
+    "LIBTPU_INIT_ARGS=",
     "DATA_DIR=gs:",
+    "dcn_topology_level:",
+    "TpuSystemLogger dumping to file",
     "Successful retry compilation of fusion.",
     "Megascale init launch counter for ",
     "bytes for BuildID, using \\d+ syscalls.",
+    "Debug logger execution longer than",
+    "estimated_start_time_ms:",
+    "Error collection latencies",
     "Creating numa aware allocators, number of NUMA nodes ",
+    "transfers {$",
+    "peers {$",
+    "desination {$",
     "Creating a tf.data.Dataset reading ",
     "Successfully started Runtime Metric Service on port",
     "Finished waiting at barrier for process",
@@ -110,6 +140,7 @@ REDUNDANT_LOGS_SUBSTR_MATCH = [
     "Branch Divergence (Control Flow Processing)",
     "convolution.* = convolution",
     "tag: \\d+$",
+    "core_idx: \\d+$",
     "pc: \\d+$",
     "chip_id: \\d+$",
     "tpu_core_summary {",
@@ -140,29 +171,31 @@ REDUNDANT_LOGS_SUBSTR_MATCH = [
     "pending_graphs {",
     "^ *actions {$",
     "^ *network_receive {$",
+    "^ *network_send {$",
     "buffer_size: \\d+$",
     "num_outputs: \\d+$",
     "device_to_host {",
     "pending_actions: \\d+$",
     "host_id: \\d+$",
     "inputs {$",
+    "compute {$",
     "destination {$",
     "transfer_info {$",
     "event_type: END",
     "=== Source Location Trace: ===",
-    "pad.\\d+ = .*pad\\(",
-    "add.\\d+ = .*add\\(",
-    "multiply.\\d+ = .*multiply\\(",
-    "divide.\\d+ = .*divide\\(",
-    "broadcast.\\d+ = .*broadcast\\(",
-    "convolution.\\d+ = .*convolution\\(",
-    "fusion.\\d+ = .*fusion\\(",
-    "exponential.\\d+ = .*exponential\\(",
-    "negate.\\d+ = .*negate\\(",
-    "bitcast.\\d+ = .*bitcast\\(",
-    "all-gather.\\d+ = .*all-gather\\(",
-    "constant.\\d+ = .*constant\\(",
-    "tuple.\\d+ = .*tuple\\(",
+    "pad.\\d+ = .*pad",
+    "add.\\d+ = .*add",
+    "multiply.\\d+ = .*multiply",
+    "divide.\\d+ = .*divide",
+    "broadcast.\\d+ = .*broadcast",
+    "convolution.\\d+ = .*convolution",
+    "fusion.\\d+ = .*fusion",
+    "exponential.\\d+ = .*exponential",
+    "negate.\\d+ = .*negate",
+    "bitcast.\\d+ = .*bitcast",
+    "all-gather.\\d+ = .*all-gather",
+    "constant.\\d+ = .*constant",
+    "tuple.\\d+ = .*tuple",
     "Operation completed over ",
     "Register usage: ",
     "Thread .* \\(most recent call first\\):",
@@ -192,7 +225,7 @@ REDUNDANT_LOGS_SUBSTR_MATCH = [
     "L\\d+ cache access: ",
     "Output data transferred: ",
     " ALU (Arithmetic Logic Unit): \\d+",
-    "Special Function Units \\(",
+    "Special Function Units ",
     "max_steps: \\d+$",
     "learner..*:",
     "mesh_axis_names\\[\\d+\\]:",
@@ -202,8 +235,8 @@ REDUNDANT_LOGS_SUBSTR_MATCH = [
     "source.split: ",
     "Load Balancing / Dispatch",
     "kvlist_attr {",
-    "Integer Units \\(",
-    "Texture Units \\(",
+    "Integer Units ",
+    "Texture Units ",
     "source.data_mixture_components\\[\\d+\\]",
     "interface_name:",
     "attributes {",
@@ -244,7 +277,6 @@ REDUNDANT_LOGS_SUBSTR_MATCH = [
     "Load balancing policy: .*max_outstanding_bytes",
     "^ *Fingerprint: ",
     "^ *wrap {",
-    "warnings.warn\\($",
     "gRPC insecure client credentials are used.",
     "Filling up shuffle buffer",
     "Shuffle buffer filled.",
@@ -265,12 +297,16 @@ REDUNDANT_LOGS_SUBSTR_MATCH = [
     "The number of .* ops:",
 ]
 
+FILE_ONLY_REDUNDANT_LOGS_EXACT = [
+    r"*** Check failure stack trace: ***",
+]
+
 REDUNDANT_LOGS_EXACT = [
     (
         "All instances are ready for PRE_START_SESSION_BARRIER, broadcasting"
         " notification..."
     ),
-    "*** Check failure stack trace: ***",
+    r"\*\*\* Check failure stack trace: \*\*\*",
     "runtime_state {",
     "Hardware utilization scores",
     "CallbackRegistryLogger has log capacity of 0.",
@@ -336,7 +372,8 @@ PERFETTO_TEMPLATE_HTML = r"""
 <!DOCTYPE html>
 <html>
 <head>
-  <title>MLTrace: $title </title>
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-src https://ui.perfetto.dev; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; navigate-to 'none';">
+  <title>MLTrace: $title</title>
   <style>
     html, body, iframe {
       margin: 0;
@@ -370,12 +407,12 @@ PERFETTO_TEMPLATE_HTML = r"""
     }
 
     @keyframes sk-rotateplane {
-      0% {
+      0% { 
         transform: perspective(120px) rotateX(0deg) rotateY(0deg);
-        -webkit-transform: perspective(120px) rotateX(0deg) rotateY(0deg)
-      } 50% {
+        -webkit-transform: perspective(120px) rotateX(0deg) rotateY(0deg) 
+      } 50% { 
         transform: perspective(120px) rotateX(-180.1deg) rotateY(0deg);
-        -webkit-transform: perspective(120px) rotateX(-180.1deg) rotateY(0deg)
+        -webkit-transform: perspective(120px) rotateX(-180.1deg) rotateY(0deg) 
       } 100% {
         transform: perspective(120px) rotateX(-180deg) rotateY(-179.9deg);
         -webkit-transform: perspective(120px) rotateX(-180deg) rotateY(-179.9deg);
