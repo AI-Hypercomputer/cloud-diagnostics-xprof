@@ -29,6 +29,7 @@ from cloud_diagnostics_xprof.actions import connect_action
 from cloud_diagnostics_xprof.actions import create_action
 from cloud_diagnostics_xprof.actions import delete_action
 from cloud_diagnostics_xprof.actions import list_action
+from cloud_diagnostics_xprof.actions import register_action
 
 
 class KeyValueAction(argparse.Action):
@@ -234,6 +235,7 @@ def main():
           'create': create_action.Create(),
           'delete': delete_action.Delete(),
           'list': list_action.List(),
+          'register': register_action.Register(),
       },
   )
 
