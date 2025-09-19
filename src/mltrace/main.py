@@ -19,7 +19,7 @@ import logging
 from mltrace import log_parser
 from mltrace import option_parser
 from mltrace import perfetto_trace_utils
-from mltrace.log_reader import file_log_reader
+from mltrace.log_reader import cloud_logging_log_reader, file_log_reader
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -29,7 +29,12 @@ logging.basicConfig(
 
 
 def get_logs(args):
-  return file_log_reader.FileLogReader(args.filename).read_logs()
+  if args.filename:
+    return file_log_reader.FileLogReader(args.filename).read_logs()
+  else:
+    return cloud_logging_log_reader.CloudLoggingLogReader(
+        args.project_id, args.jobname, args.start, args.end, args.log_filter
+    ).read_logs()
 
 
 def main():
@@ -47,4 +52,4 @@ def main():
         " Check the format of the logs."
     )
   traces = perfetto_trace_utils.translate_to_traces(data)
-  perfetto_trace_utils.dump_traces(args.filename, traces)
+  perfetto_trace_utils.dump_traces(args.output_filename, traces)

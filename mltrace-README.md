@@ -59,9 +59,11 @@ export PATH="$PATH:$HOME/.local/bin"
 - Install pandas:
 `pip install pandas`
 
+- Install more_itertools
+`pip install more_itertools`
+
 - You'll also need to install the google package and make sure it's up-to-date:
 `pip install --upgrade google-api-python-client`
-
 
 ## Installation
 
@@ -77,10 +79,18 @@ protoc --proto_path=perfetto/protos/perfetto/trace/ --python_out=perfetto/protos
 ## Run mltrace
 
 ```
-python3 run_mltrace.py -f <json_or_csv_filepath> -j <jobset_name>
+# Read logs from Cloud Logging directly
+python3 run_mltrace.py -p <project_id> -s '<start_time>' -e '<end_time>' -l '<log_filter1> <log_filter2> ..' -o <output_filename> -j <jobset_or_job_name> --loglevel=DEBUG
+
+OR
+
+# Read logs from a file
+python3 run_mltrace.py -f <json_or_csv_filepath> -j <jobset_name> -p <project_id> --loglevel=DEBUG
 ```
-The output will be a trace file and an HTML file stored under the same directory
-as your input file.
+The output will be a trace file and an HTML file, stored under the same
+directory as your input file (if provided). You can either host the
+webpage or upload the .gz trace file to [perfetto.dev](https://perfetto.dev/)
+for log visualization.
 
 ## View the traces
 
@@ -102,14 +112,40 @@ upload this file manually.
 Got to https://perfetto.dev/ > Click on `Trace Viewer` > Upload the ".gz" trace
 file.
 
-
 ## Example usage
 
-### Step 1: Download the logs
+### Option 1: Read logs drectly from Cloud Logging
+
+#### Step 1: Run mltrace
+
+```
+python3 run_mltrace.py -p my-project -s '2025-07-22T12:15:00.000-07:00' -e '2025-07-22T15:18:00.000000-07:00' -l 'labels."compute.googleapis.com resource_name"="gke-workload-pod"' -o output_tracefile -j my-jobset --loglevel=DEBUG
+```
+
+#### Step 2: Visualize
+
+Either host the output webpage or upload the trace file to Perfetto.
+
+##### Option a: Host the webpage
+
+```
+python3 -m http.server --bind 0.0.0.0 9919
+<visit https://0.0.0.0 9919 -> open your html page>
+```
+
+##### Option b: Upload to Perfetto
+
+Got to https://perfetto.dev/, click on `Trace Viewer` and upload the trace file.
+
+![Upload to Perfetto](docs/images/ex1-perfetto.png "Upload to Perfetto")
+
+### Option 2: Read logs from file
+
+#### Step 1: Download the logs
 
 The script reads logs from a JSON file. The first step is to copy logs to JSON.
 
-#### Option a: Download from GCP console
+##### Option a: Download from GCP console
 
 You can download your workload logs from the GCP console directly. See the
 screenshot below.
@@ -121,7 +157,7 @@ If you're looking to download more logs. See
 <img src="docs/images/ex1-download-1.png" width="700">
 <img src="docs/images/ex1-download-2.png" width="500">
 
-#### Option b: Export the logs from sink
+##### Option b: Export the logs from sink
 
 You can create a sink and export your logs as mentioned on the second screenshot
 above. If you do not have a custom sink for your project, all logs are stored in
@@ -151,13 +187,11 @@ r = pd.concat(output_list)
 r.to_json("merged.json", orient='records', lines=True)
 ```
 
-### Step 2: Run the mltrace tool
+#### Step 2: Run the mltrace tool
 
 ```
-python3 run_mltrace.py -f <filepath> -j <jobset_name>
+python3 run_mltrace.py -f <filepath> -j <jobset_name> -p <project_id> --loglevel=DEBUG
 ```
 
 ### Step 3: Visualize the traces with Perfetto
-
-![Visualize with Perfetto](docs/images/ex1-perfetto.png "Visualize with Perfetto")
-
+Same as [above](#step-2-visualize)
