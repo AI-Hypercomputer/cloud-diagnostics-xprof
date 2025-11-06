@@ -684,7 +684,7 @@ You will need the full hostname for the TPU & port number
 with the following format:
 
 ```
-<TPU_VM_HOSTNAME>.<ZONE>.c.<GCP_PROJECT_NAME>.internal:<PORT_NUMBER>
+<TPU_VM_HOSTNAME>.<ZONE>.c.<PROJECT_ID>.internal:<PORT_NUMBER>
 ```
 
 * `TPU_VM_HOSTNAME`: This is different from the TPU name and refers to the host
@@ -694,7 +694,7 @@ with the following format:
   `gcloud compute tpus tpu-vm ssh $TPU_NAME  --zone=$ZONE --command="hostname"`
 * `ZONE`: This is the zone of the TPU VM. Note that it is ***NOT** necessarily
   the same as the `xprofiler` VM instance that is displaying TensorBoard.
-* `GCP_PROJECT_NAME`: This is the project name for the TPU VM.
+* `PROJECT_ID`: This is the project ID for the TPU VM.
   Note that it is ***NOT** necessarily the same as the `xprofiler` VM instance
   that is displaying TensorBoard. However, it likely will need to be since
   having the TPU in a different project will likely lead to permission issues,
