@@ -35,7 +35,7 @@ from cloud_diagnostics_xprof.actions import list_action
 
 # Frozen to specific version of tensorboard-plugin-profile; updated periodically
 # Note used for install and adding to metadata + label.
-_TENSORBOARD_PLUGIN_PROFILE_VERSION = '2.20.6'
+_TENSORBOARD_PLUGIN_PROFILE_VERSION = '2.21.1'
 
 _GKE_TENSORBOARD_REPLICA_COUNT = 3
 
