@@ -135,6 +135,7 @@ CONTAINER_URL='gcr.io/inverting-proxy/agent:latest'
 echo -e \"CONTAINER_URL:\"
 echo -e \"\${CONTAINER_URL}\"
 # Start agent container
+echo -e \"Starting Docker\"
 docker run -d \
 --env \"BACKEND=\${BACKEND_ID}\" \
 --env \"PROXY=\${PROXY_URL}/\" \
@@ -157,7 +158,7 @@ echo \"Startup Finished\"
 _STARTUP_ENTRY_STRING: str = r"""#! /bin/bash
 python3 -c "print(r'''{STARTUP_SCRIPT_STRING}''')" > startup.sh
 chmod 775 startup.sh
-. ./startup.sh > startup_output.log
+. ./startup.sh &> startup_output.log
 gsutil cp startup_output* {LOG_DIRECTORY}/{INSTANCE_NAME}
 """
 
