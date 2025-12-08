@@ -103,12 +103,6 @@ class Register(action.Command):
         required=True,
         help='The project id of this ML run.',
     )
-    register_parser.add_argument(
-        '--display-name',
-        '-d',
-        required=True,
-        help='The display name of the ML run to be registered.',
-    )
 
   def run(
       self,
@@ -155,7 +149,11 @@ class Register(action.Command):
     # The target is in the format of
     # projects/{project_id}/locations/{region}/machineLearningRuns/{run_id}
     target_list = response_json['metadata']['target'].split('/')
-    return f'ML run registered: {target_list[-1]}'
+    *_, run_id = target_list
+    return (
+        f'view the ML run at https://console.cloud.google.com/cluster-director/'
+        f'diagnostics/details/{args.region}/{run_id}?project={args.project_id}'
+    )
 
   def _get_access_token(self) -> str:
     """Returns the access token for the current user."""
@@ -187,32 +185,14 @@ class Register(action.Command):
         requests.exceptions.RequestException: If the HTTP request fails
     """
 
-    # TODO(b/443783268): Remove when the metrics and configs are optional.
-    json_string = """
-    {
-      "configs": {
-        "userConfigs": {
-          "a": "b"
-        }
-      },
-      "tools": [{
-        "xprof": {
-        }
-      }],
-      "metrics": {
-        "avgStep": "1s",
-        "avgMfu": 1.0,
-        "avgThroughput": 1.0,
-        "avgLatency": "1s"
-      },
-      "state": "STATE_COMPLETED"
+    # payload = json.loads(json_string)
+    payload = {
+        'displayName': args.ml_run_name,
+        'name': args.ml_run_name,
+        'runSet': args.run_set,
+        'artifacts': {'gcs_path': args.log_directory},
+        'state': 'STATE_COMPLETED',
     }
-    """
-    payload = json.loads(json_string)
-    payload['displayName'] = args.display_name
-    payload['name'] = args.ml_run_name
-    payload['runSet'] = args.run_set
-    payload['artifacts'] = {'gcs_path': args.log_directory}
 
     ml_runs_url = f'{self.BASE_URL}/projects/{args.project_id}/locations/{args.region}/machineLearningRuns'
 
