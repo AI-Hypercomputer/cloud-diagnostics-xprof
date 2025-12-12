@@ -500,19 +500,32 @@ class Command(abc.ABC):
       host_name: str,
       zone: str,
       verbose: bool = False,
+      non_tpu_vm: bool = False,
   ) -> bool:
     """Checks if a host exists."""
     try:
       host_describe_command = [
           self.GCLOUD_COMMAND,
           'compute',
-          'tpus',
-          'tpu-vm',
+      ]
+
+      if non_tpu_vm:
+        host_describe_command = host_describe_command + [
+            'instances',
+        ]
+      else:
+        host_describe_command = host_describe_command + [
+            'tpus',
+            'tpu-vm',
+        ]
+
+      host_describe_command = host_describe_command + [
           'describe',
           host_name,
           '--zone',
           zone,
       ]
+
       _ = self._run_command(host_describe_command, verbose=verbose)
       return True
     except ValueError as e:

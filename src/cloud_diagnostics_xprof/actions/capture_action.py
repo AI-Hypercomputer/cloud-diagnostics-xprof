@@ -26,17 +26,34 @@ import datetime
 
 from cloud_diagnostics_xprof.actions import action
 
+_COLLECT_PROFILE_SCRIPT = """
+from typing import List
+from xprof.convert import _pywrap_profiler_plugin
 
+print(f"Starting remote profile for {host} on {port}...")
+_pywrap_profiler_plugin.trace(
+    "{host}:{port}",
+    "{log_directory}",
+    "",
+    True,
+    {duration},
+    3, # DEFAULT_NUM_TRACING_ATTEMPTS
+    {{
+      "session_id": "{session_id}",
+      "override_hostnames": "{host}"
+    }},
+)
+print(f"Dumped profiling information in: {log_directory}")
+"""
+_JAX_CAPTURE_COMMAND = (
+    f'echo -e \'{_COLLECT_PROFILE_SCRIPT.replace('\n', '\\n')}\' | python3'
+)
 _DOWNLOAD_CAPTURE_PROFILE = (
     'wget https://raw.githubusercontent.com/pytorch/xla/master/scripts/capture_profile.py'
 )
 _PYTORCH_CAPTURE_COMMAND = (
     'python3 capture_profile.py --service_addr localhost:{port} --duration'
     ' {duration} --logdir {log_directory}'
-)
-_JAX_CAPTURE_COMMAND = (
-    'python3 -m jax.collect_profile {port} {duration} --log_dir={log_directory}'
-    ' --no_perfetto_link'
 )
 _UPLOAD_PROFILE_COMMAND = (
     'gsutil cp $(ls tmp/tensorboard/{session_id}/plugins/profile/*/*xplane.pb|'
@@ -151,23 +168,43 @@ class Capture(action.Command):
         action='store_true',
         help='Print the command.',
     )
+    # vm-type is optional.
+    capture_parser.add_argument(
+        '--non-tpu-vm',
+        action='store_true',
+        default=False,
+        help='If true assume non TPU VM.',
+    )
 
   def _build_command(
       self,
       args: argparse.Namespace,
       extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
+      non_tpu_vm: bool = False,
   ) -> Sequence[str]:
     command = [
         self.GCLOUD_COMMAND,
         'compute',
-        'tpus',
-        'tpu-vm',
+    ]
+
+    if not non_tpu_vm:
+      command = command + [
+          'tpus',
+          'tpu-vm',
+      ]
+
+    command = command + [
         'ssh',
         args.host,
         '--zone',
         args.zone,
-        '--worker=all',
+    ]
+
+    if not non_tpu_vm:
+      command = command + ['--worker=all']
+
+    command = command + [
         '--command',
         args.command,
     ]
@@ -201,6 +238,7 @@ class Capture(action.Command):
       single_host_args: argparse.Namespace,
       extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
+      non_tpu_vm: bool = False,
   ) -> list[Sequence[str]]:
     """Runs the profile script on a single host."""
     commands: list[Sequence[str]] = []
@@ -209,13 +247,28 @@ class Capture(action.Command):
       # Command to download the capture profile script.
       single_host_args.command = _DOWNLOAD_CAPTURE_PROFILE
       commands.append(
-          self._build_command(single_host_args, extra_args, verbose)
+          self._build_command(single_host_args, extra_args, verbose, non_tpu_vm)
       )
       # Capture command (assuming script is already uploaded).
       single_host_args.command = _PYTORCH_CAPTURE_COMMAND.format(
           port=args.port,
           duration=args.duration,
           log_directory=local_log_location,
+      )
+      commands.append(
+          self._build_command(
+              args=single_host_args,
+              extra_args=extra_args,
+              verbose=verbose,
+          )
+      )
+
+      # Upload the profile to gs bucket.
+      # Remove trailing slash from log directory; avoids creating a `/` directory.
+      single_host_args.command = _UPLOAD_PROFILE_COMMAND.format(
+          log_directory=args.log_directory.rstrip('/'),
+          session_id=session_id,
+          host=host,
       )
       commands.append(
           self._build_command(
@@ -232,13 +285,16 @@ class Capture(action.Command):
       single_host_args.command = _JAX_CAPTURE_COMMAND.format(
           port=args.port,
           duration=args.duration,
-          log_directory=local_log_location,
+          log_directory=args.log_directory.rstrip('/'),
+          session_id=session_id,
+          host=host,
       )
       commands.append(
           self._build_command(
               args=single_host_args,
               extra_args=extra_args,
               verbose=verbose,
+              non_tpu_vm=non_tpu_vm,
           )
       )
 
@@ -252,20 +308,6 @@ class Capture(action.Command):
           ' https://github.com/AI-Hypercomputer/cloud-diagnostics-xprof?tab=readme-ov-file#profile-capture-via-tensorboard-ui'
       )
 
-    # Upload the profile to gs bucket.
-    # Remove trailing slash from log directory; avoids creating a `/` directory.
-    single_host_args.command = _UPLOAD_PROFILE_COMMAND.format(
-        log_directory=args.log_directory.rstrip('/'),
-        session_id=session_id,
-        host=host,
-    )
-    commands.append(
-        self._build_command(
-            args=single_host_args,
-            extra_args=extra_args,
-            verbose=verbose,
-        )
-    )
     return commands
 
   def _profile_single_host_gke(
@@ -291,6 +333,15 @@ class Capture(action.Command):
       )
       commands.append(self._build_command_gke(args=single_host_args))
 
+      # Upload the profile to gs bucket.
+      # Remove trailing slash from log directory; avoids creating a `/` directory.
+      single_host_args.command = _UPLOAD_PROFILE_COMMAND.format(
+          log_directory=args.log_directory.rstrip('/'),
+          session_id=session_id,
+          host=host,
+      )
+      commands.append(self._build_command_gke(args=single_host_args))
+
     # Framework is JAX.
     if args.framework == 'jax':
       # Local directory on remote host.
@@ -298,18 +349,12 @@ class Capture(action.Command):
       single_host_args.command = _JAX_CAPTURE_COMMAND.format(
           port=args.port,
           duration=args.duration,
-          log_directory=local_log_location,
+          log_directory=args.log_directory.rstrip('/'),
+          session_id=session_id,
+          host=host,
       )
       commands.append(self._build_command_gke(args=single_host_args))
 
-    # Upload the profile to gs bucket.
-    # Remove trailing slash from log directory; avoids creating a `/` directory.
-    single_host_args.command = _UPLOAD_PROFILE_COMMAND.format(
-        log_directory=args.log_directory.rstrip('/'),
-        session_id=session_id,
-        host=host,
-    )
-    commands.append(self._build_command_gke(args=single_host_args))
     return commands
 
   def _profile_single_host(
@@ -320,6 +365,7 @@ class Capture(action.Command):
       args: argparse.Namespace,
       extra_args: Mapping[str, str | None] | None = None,
       verbose: bool = False,
+      non_tpu_vm: bool = False,
   ) -> str:
     """Runs the profile script on a single host."""
     print(f'Starting profile capture on host {host}.')
@@ -341,6 +387,7 @@ class Capture(action.Command):
           single_host_args=single_host_args,
           extra_args=extra_args,
           verbose=verbose,
+          non_tpu_vm=non_tpu_vm,
       )
     elif args.orchestrator == 'gke':
       commands = self._profile_single_host_gke(
@@ -419,6 +466,7 @@ class Capture(action.Command):
             host_name=host,
             zone=args.zone,
             verbose=verbose,
+            non_tpu_vm=args.non_tpu_vm,
         ):
           raise ValueError(f'Host {host} does not exist.')
 
@@ -447,6 +495,7 @@ class Capture(action.Command):
           args=args,
           extra_args=extra_args,
           verbose=verbose,
+          non_tpu_vm=args.non_tpu_vm,
       )
       stdout_all_hosts.append(single_host_stdout)
 
