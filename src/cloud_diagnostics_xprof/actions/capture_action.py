@@ -45,8 +45,9 @@ _pywrap_profiler_plugin.trace(
 )
 print(f"Dumped profiling information in: {log_directory}")
 """
+_ESCAPED_COLLECT_PROFILE_SCRIPT = _COLLECT_PROFILE_SCRIPT.replace('\n', '\\n')
 _JAX_CAPTURE_COMMAND = (
-    f'echo -e \'{_COLLECT_PROFILE_SCRIPT.replace('\n', '\\n')}\' | python3'
+    f'echo -e \'{_ESCAPED_COLLECT_PROFILE_SCRIPT}\' | python3'
 )
 _DOWNLOAD_CAPTURE_PROFILE = (
     'wget https://raw.githubusercontent.com/pytorch/xla/master/scripts/capture_profile.py'
