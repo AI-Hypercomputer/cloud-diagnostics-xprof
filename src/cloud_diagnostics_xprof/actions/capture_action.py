@@ -26,28 +26,16 @@ import datetime
 
 from cloud_diagnostics_xprof.actions import action
 
-_COLLECT_PROFILE_SCRIPT = """
-from typing import List
-from xprof.convert import _pywrap_profiler_plugin
-
-print(f"Starting remote profile for {host} on {port}...")
-_pywrap_profiler_plugin.trace(
-    "{host}:{port}",
-    "{log_directory}",
-    "",
-    True,
-    {duration},
-    3, # DEFAULT_NUM_TRACING_ATTEMPTS
-    {{
-      "session_id": "{session_id}",
-      "override_hostnames": "{host}"
-    }},
+_COLLECT_PROFILE_SCRIPT = (
+    'from typing import List;'
+    'from xprof.convert import _pywrap_profiler_plugin;'
+    'print(f"Starting remote profile for {host} on {port}...");'
+    '_pywrap_profiler_plugin.trace('
+    '"{host}:{port}","{log_directory}","", True, {duration},3,'
+    '{{"session_id": "{session_id}","override_hostnames": "{host}"}});'
+    'print(f"Dumped profiling information in: {log_directory}");'
 )
-print(f"Dumped profiling information in: {log_directory}")
-"""
-_JAX_CAPTURE_COMMAND = (
-    f'echo -e \'{_COLLECT_PROFILE_SCRIPT.replace('\n', '\\n')}\' | python3'
-)
+_JAX_CAPTURE_COMMAND = f"echo -e '{_COLLECT_PROFILE_SCRIPT}' | python3"
 _DOWNLOAD_CAPTURE_PROFILE = (
     'wget https://raw.githubusercontent.com/pytorch/xla/master/scripts/capture_profile.py'
 )
